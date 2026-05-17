@@ -45,3 +45,28 @@ struct NoopPlugin: FeaturePlugin {
     #expect(p.inlineResultView(for: ProcessedText(original: "x", transliteration: "x",
                                     variantId: "v", source: .text)) == nil)
 }
+
+@MainActor
+@Test func configExposesBrandingAndDefaultsStringsToEnglish() {
+    let cfg = BiangBiangConfig(
+        branding: Branding(appName: "Demo", accentColorHex: "#DE2910",
+            logoAssetName: "Logo", buttonLogoAssetName: "Button",
+            githubRepo: "veeso/Demo", supportEmail: "info@veeso.dev",
+            appStoreId: "1", playStoreId: "dev.veeso.demo"),
+        languages: [], extraSettings: [], plugins: [],
+        features: FeatureFlags(), strings: nil)
+    #expect(cfg.branding.appName == "Demo")
+    #expect(cfg.features.history && cfg.features.ratePrompt && cfg.features.tts)
+    #expect(cfg.strings.clearAll == "Clear All")
+}
+
+@MainActor
+@Test func stringOverridesMergeOverDefaults() {
+    let cfg = BiangBiangConfig(
+        branding: Branding(appName: "D", accentColorHex: "#000",
+            logoAssetName: "", buttonLogoAssetName: "", githubRepo: "",
+            supportEmail: "", appStoreId: "", playStoreId: ""),
+        languages: [], extraSettings: [], plugins: [],
+        features: FeatureFlags(), strings: ["clearAll": "Wipe"])
+    #expect(cfg.strings.clearAll == "Wipe")
+}
