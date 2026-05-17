@@ -1,4 +1,5 @@
 import Testing
+import SwiftUI
 @testable import BiangBiangUI
 
 struct UpcaseTransliterator: Transliterator {
@@ -27,4 +28,20 @@ struct UpcaseTransliterator: Transliterator {
     #expect(profile.variants.count == 3)
     #expect(profile.variants.last?.translatable == false)
     #expect(profile.scriptRanges.first?.contains(0x4F60) == true)
+}
+
+@MainActor
+struct NoopPlugin: FeaturePlugin {
+    var tabs: [PluginTab] { [] }
+}
+
+@MainActor
+@Test func pluginDefaultsAreEmpty() {
+    let p = NoopPlugin()
+    #expect(p.tabs.isEmpty)
+    #expect(p.audioProvider == nil)
+    p.onProcessedText(ProcessedText(original: "x", transliteration: "x",
+                                    variantId: "v", source: .text))
+    #expect(p.inlineResultView(for: ProcessedText(original: "x", transliteration: "x",
+                                    variantId: "v", source: .text)) == nil)
 }
