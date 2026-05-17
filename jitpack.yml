@@ -1,0 +1,6 @@
+jdk:
+  - openjdk21
+before_install:
+  - ./android/gradlew -p android :biangbiang-ui:assembleRelease
+install:
+  - ./android/gradlew -p android :biangbiang-ui:publishToMavenLocal

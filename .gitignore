@@ -7,10 +7,15 @@ xcuserdata/
 # Swift Package Manager
 /.build/
 /Packages/
-
-# CocoaPods
-Pods/
 *.xcworkspace
+
+# Android / Gradle
+.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/.idea/
+*.iml
 
 # Others
 .DS_Store
