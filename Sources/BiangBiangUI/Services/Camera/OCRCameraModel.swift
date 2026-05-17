@@ -14,7 +14,7 @@ import Vision
 ///
 /// `boundingBox` is in normalised coordinates (0–1) with Vision's
 /// bottom-left origin.
-public struct RecognizedTextBox: Identifiable, Sendable {
+public struct RecognizedTextBox: Identifiable, Equatable, Sendable {
     public let id = UUID()
     public let text: String
     /// Normalised bounding box (0–1). Vision origin is bottom-left.
