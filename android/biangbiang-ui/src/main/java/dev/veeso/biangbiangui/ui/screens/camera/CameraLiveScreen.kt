@@ -64,7 +64,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.veeso.biangbiangui.protocols.ProcessedText
 import dev.veeso.biangbiangui.services.camera.LiveOcrAnalyzer
 import dev.veeso.biangbiangui.services.camera.OcrBox
-import dev.veeso.biangbiangui.services.camera.OcrService
+import dev.veeso.biangbiangui.services.camera.StillImageOcr
 import dev.veeso.biangbiangui.services.camera.availablePresets
 import dev.veeso.biangbiangui.services.camera.capturePhoto
 import dev.veeso.biangbiangui.services.camera.clampZoom
@@ -226,7 +226,7 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
     LaunchedEffect(capturedImage, recognizerKind, engine) {
         ocrBoxes.clear()
         capturedImage?.let { bitmap ->
-            val boxes = OcrService(recognizerKind, engine).recognize(bitmap)
+            val boxes = StillImageOcr(recognizerKind, engine).recognize(bitmap)
             ocrBoxes.addAll(boxes)
             dispatchPluginHooks(boxes)
         }
