@@ -45,6 +45,9 @@ dependencies {
     // icu4j: example-only Arabic romaniser (Any-Latin). Mirrors iOS where
     // CFStringTransform lives in the example, never the library.
     implementation(libs.icu4j)
+    // tesseract4android: example-only Arabic OCR backend. ML Kit has no Arabic
+    // model, so the Arabic example plugs Tesseract in via the OcrService seam.
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
     testImplementation(libs.robolectric)

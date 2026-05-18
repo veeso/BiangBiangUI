@@ -53,6 +53,7 @@ fun arabicConfig(context: Context): BiangBiangConfig {
                         translatable = true,
                     ),
                 ),
+                ocrService = TesseractOcrService(appContext),
             ),
         ),
         extraSettings = listOf(
