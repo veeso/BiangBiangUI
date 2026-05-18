@@ -1,3 +1,4 @@
+import ArabicExample
 @testable import BiangBiangUI
 import ChineseExample
 import SwiftUI
@@ -85,4 +86,15 @@ struct NoopPlugin: FeaturePlugin {
         features: FeatureFlags(), strings: ["clearAll": "Wipe"]
     )
     #expect(cfg.strings.clearAll == "Wipe")
+}
+
+@MainActor @Test func arabicConfigHasQuranPluginAndDescriptor() {
+    let cfg = ArabicConfig.arabicConfig
+    #expect(cfg.plugins.count == 1)
+    #expect(cfg.extraSettings.contains { $0.key == "quranMode" })
+    #expect(cfg.languages[0].variants[0].ttsLanguageCode == "ar")
+}
+
+@Test func arabicTransliteratorRomanises() {
+    #expect(ArabicTransliterator().transliterate("السلام").isEmpty == false)
 }

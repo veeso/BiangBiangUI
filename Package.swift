@@ -22,9 +22,20 @@ let package = Package(
             resources: [.process("Resources/cantonese.json")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        .target(
+            name: "ArabicExample",
+            dependencies: ["BiangBiangUI"],
+            path: "Examples/ArabicExample",
+            resources: [
+                .process("Resources/quran.json"),
+                .process("Resources/surah-names.json"),
+                .process("Resources/vocab.plist"),
+            ],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .testTarget(
             name: "BiangBiangUITests",
-            dependencies: ["BiangBiangUI", "ChineseExample"],
+            dependencies: ["BiangBiangUI", "ChineseExample", "ArabicExample"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]
