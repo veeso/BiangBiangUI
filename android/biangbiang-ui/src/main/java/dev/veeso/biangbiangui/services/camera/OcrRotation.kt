@@ -136,9 +136,13 @@ object OcrRotation {
      * Stride-aware YUV_420_888 -> NV21. Real CameraX frames have
      * `rowStride > width` row padding and frequently semi-planar U/V with
      * `pixelStride == 2`; a bulk `buffer.get(remaining())` copy corrupts every
-     * frame on most Samsung/Qualcomm devices. Uses absolute-index `get(index)`
-     * so buffer positions are never mutated and there is no race with CameraX
-     * recycling the proxy.
+     * frame on most Samsung/Qualcomm devices. The per-pixel paths use
+     * absolute-index `get(index)` so buffer positions are not mutated; the
+     * fast path performs a single bulk relative copy before the proxy is
+     * closed (safe — each plane is read exactly once per call).
+     *
+     * Precondition: `proxy.width`/`height` are even (always true for CameraX
+     * `YUV_420_888`); the `w*h*3/2` NV21 sizing relies on it.
      */
     private fun yuv420ToNv21(proxy: androidx.camera.core.ImageProxy): ByteArray {
         val w = proxy.width
