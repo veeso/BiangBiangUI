@@ -9,6 +9,11 @@ The mapping is derived from the actual source tree at commit `506997c`
 (branch `worktree-biangbiang-ui-impl`). It is not aspirational: each row was
 walked in both trees, and every divergence claim was verified against code.
 
+The audit was performed against the source tree at `506997c` (the state of
+all Phase 0–5 implementation); this document is committed subsequently on
+branch `worktree-biangbiang-ui-impl`, and must be re-validated if library or
+example code changes after `506997c`.
+
 - iOS library root: `Sources/BiangBiangUI/`
 - Android library root:
   `android/biangbiang-ui/src/main/java/dev/veeso/biangbiangui/`
@@ -26,6 +31,38 @@ walked in both trees, and every divergence claim was verified against code.
 - Tables stay narrow on purpose (repo `.markdownlint.json` enforces MD013 at
   80 columns for tables too); the long-form detail lives in the prose
   sections, not the cells.
+- Maintenance invariant: every iOS type/file has a row; every deliberate
+  divergence has a `Dn` tag with a rationale and, where applicable, its
+  mirrored-test note; re-validate every row on any code change.
+
+### Parity-column legend
+
+The short tokens used in the Parity column:
+
+- `surface` — same public API shape (types, signatures, keys).
+- `behav` — same observable behaviour given equal inputs.
+- `data` — byte-/lossless-equivalent bundled data.
+- `role` — same architectural role; the idiom differs.
+- `Byte-id.` / `Lossless` — asset equivalence: byte-identical, or
+  lossless-converted with verified entry count.
+
+### Abbreviations
+
+Table cells abbreviate searchable type names to fit the 80-column tables.
+Full names (search these to find the row):
+
+- `SettingDescr.` → `SettingDescriptor`
+- `RecognizedTextOvrl.` → `RecognizedTextOverlay`
+- `CameraPermissionScr.` → `CameraPermissionScreen`
+- `EveryAyahAudioP.` → `EveryAyahAudioProvider`
+- `JyutpingTranslit.` → `JyutpingTransliterator`
+- `VocalizationDict.` → `VocalizationDictionary`
+- `ArabicTranslit.` → `ArabicTransliterator`
+- `Components/SectionV.` → `Components/SectionView`
+- `System*AudioProv.` → `SystemTTSAudioProvider` /
+  `SystemTtsAudioProvider`
+- `Camera*` → `CameraPreview` (iOS) / `CameraUtils` (Android)
+- `TextProcessing...` → `TextProcessingEngine`
 
 ## Library: configuration
 
@@ -209,7 +246,8 @@ failure message is hardcoded on both sides but worded per engine (iOS:
 `"Translation failed: ..."`; Android:
 `"⚠️ Translation unavailable for this language"`) because the two engines
 surface unavailability differently — a defensible engine-level difference,
-not a parity break.
+not a parity break. (See also D11 for the hardcoded-string rationale; update
+both entries together.)
 
 ### D7 translator lifecycle
 
@@ -249,7 +287,8 @@ and the translation-unavailable footer text are hardcoded — not routed
 through `UIStrings`/`UiStrings` — on **both** platforms. This was a
 deliberate faithful-port decision and is parity-consistent (the same strings
 are hardcoded in the same places on both sides), so it is noted rather than
-"fixed" asymmetrically.
+"fixed" asymmetrically. (See also D6, which covers the translation-unavailable
+wording; update both entries together.)
 
 ### D12 history codec factoring
 
