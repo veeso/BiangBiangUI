@@ -25,6 +25,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures { compose = true }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11 } }
@@ -49,9 +53,15 @@ dependencies {
     implementation(libs.androidx.camera.extensions)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.text.recognition.chinese)
+    implementation(libs.text.recognition)
+    implementation(libs.text.recognition.japanese)
+    implementation(libs.text.recognition.korean)
     implementation(libs.translate)
     implementation(libs.play.review.ktx)
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.androidx.datastore.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
