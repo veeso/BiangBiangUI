@@ -82,4 +82,58 @@ object OcrRotation {
      */
     fun isSane(box: Box, upright: UprightSize): Boolean =
         box.height < upright.height * 0.5f && box.width < upright.width * 0.9f
+
+    /**
+     * The single correct `ImageProxy` -> upright [android.graphics.Bitmap]
+     * helper. Rasterises the YUV_420_888 camera frame to a JPEG, decodes it,
+     * then applies [rotationDegrees] so the bitmap is in the same upright space
+     * the boxes are later validated against. Keeping ALL rotation math in this
+     * one object is the architectural invariant (no drift by construction).
+     */
+    @androidx.camera.core.ExperimentalGetImage
+    fun toUprightBitmap(
+        proxy: androidx.camera.core.ImageProxy,
+        rotationDegrees: Int,
+    ): android.graphics.Bitmap {
+        val nv21 = yuv420ToNv21(proxy)
+        val yuv = android.graphics.YuvImage(
+            nv21,
+            android.graphics.ImageFormat.NV21,
+            proxy.width,
+            proxy.height,
+            null,
+        )
+        val out = java.io.ByteArrayOutputStream()
+        yuv.compressToJpeg(
+            android.graphics.Rect(0, 0, proxy.width, proxy.height),
+            100,
+            out,
+        )
+        val bytes = out.toByteArray()
+        val raw = android.graphics.BitmapFactory
+            .decodeByteArray(bytes, 0, bytes.size)
+        if (rotationDegrees == 0) return raw
+        val m = android.graphics.Matrix().apply {
+            postRotate(rotationDegrees.toFloat())
+        }
+        return android.graphics.Bitmap.createBitmap(
+            raw, 0, 0, raw.width, raw.height, m, true,
+        )
+    }
+
+    private fun yuv420ToNv21(
+        proxy: androidx.camera.core.ImageProxy,
+    ): ByteArray {
+        val y = proxy.planes[0].buffer
+        val u = proxy.planes[1].buffer
+        val v = proxy.planes[2].buffer
+        val ySize = y.remaining()
+        val uSize = u.remaining()
+        val vSize = v.remaining()
+        val nv21 = ByteArray(ySize + uSize + vSize)
+        y.get(nv21, 0, ySize)
+        v.get(nv21, ySize, vSize)
+        u.get(nv21, ySize + vSize, uSize)
+        return nv21
+    }
 }
