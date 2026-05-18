@@ -18,15 +18,29 @@ import kotlinx.coroutines.withContext
  */
 class TesseractOcrService(context: Context) : OcrService {
     private val fallback = DefaultOcrService()
-    private val dataParent: File =
-        File(context.filesDir, "tess").apply { mkdirs() }
+    private val appContext = context.applicationContext
+    private val dataParent: File = File(appContext.filesDir, "tess")
 
-    init {
-        val tessdata = File(dataParent, "tessdata").apply { mkdirs() }
-        val target = File(tessdata, "ara.traineddata")
-        if (!target.exists()) {
-            context.assets.open("tessdata/ara.traineddata").use { input ->
-                target.outputStream().use { input.copyTo(it) }
+    @Volatile private var assetCopied = false
+
+    private suspend fun ensureTraineddata() {
+        if (assetCopied) return
+        withContext(Dispatchers.IO) {
+            synchronized(this@TesseractOcrService) {
+                if (assetCopied) return@synchronized
+                dataParent.mkdirs()
+                val tessdata = File(dataParent, "tessdata").apply { mkdirs() }
+                val target = File(tessdata, "ara.traineddata")
+                if (!target.exists()) {
+                    val tmp = File(tessdata, "ara.traineddata.tmp")
+                    appContext.assets.open("tessdata/ara.traineddata").use { input ->
+                        tmp.outputStream().use { input.copyTo(it) }
+                    }
+                    check(tmp.renameTo(target)) {
+                        "Failed to install ara.traineddata"
+                    }
+                }
+                assetCopied = true
             }
         }
     }
@@ -38,7 +52,12 @@ class TesseractOcrService(context: Context) : OcrService {
         if (recognizer != OcrRecognizer.ARABIC || bitmap == null) {
             return fallback.recognize(bitmap, recognizer)
         }
+        ensureTraineddata()
         return withContext(Dispatchers.Default) {
+            // A new TessBaseAPI is created per call (model reload each time).
+            // Acceptable for the 1 s live-OCR throttle in this example; a
+            // production adapter should cache the API instance and call
+            // api.clear() between frames instead of api.recycle().
             val api = TessBaseAPI()
             try {
                 api.init(dataParent.absolutePath, "ara")
