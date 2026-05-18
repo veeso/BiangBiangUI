@@ -82,7 +82,7 @@ import kotlin.math.abs
  *
  * Generalisations vs. the reference:
  * - The hard-coded Chinese recognizer/`TextProcessor` is replaced by the 5.2
- *   `LiveOcrAnalyzer`/`OcrService` built from `ctx.activeProfile.ocrRecognizer`
+ *   `LiveOcrAnalyzer`/`StillImageOcr` built from `ctx.activeProfile.ocrRecognizer`
  *   and `ctx.engine`. The overlay consumes the upright dims the analyzer emits
  *   (correct `OcrRotation` basis — no drift).
  * - All strings from `config.strings`; `showPinyin` -> `showTransliteration`;
