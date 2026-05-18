@@ -34,6 +34,18 @@ import dev.veeso.biangbiangui.services.TextProcessingEngine
  *
  * Ownership: [BiangBiangRoot] builds one holder and provides it via
  * [LocalBiangBiangContext]. Screens only read it.
+ *
+ * ## Construction invariant (do not break)
+ *
+ * This holder MUST be constructed only inside a `remember`-scoped composable,
+ * i.e. exclusively via [rememberBiangBiangContext]. [activeVariantState] and
+ * [engineState] are `derivedStateOf { }` instances created in the constructor
+ * body; `derivedStateOf` only tracks Snapshot reads (here `selectedVariantId`)
+ * when its host object lives for the duration of the composition. Constructing
+ * `BiangBiangContext` outside composition (e.g. plain `BiangBiangContext(...)`
+ * in a factory, test setup, or non-`remember` code path) would re-create the
+ * derived states on every recomposition and silently break the reactive
+ * variant/engine rebuild seam. Always go through [rememberBiangBiangContext].
  */
 class BiangBiangContext(
     val config: BiangBiangConfig,
@@ -113,6 +125,11 @@ val LocalBiangBiangContext = staticCompositionLocalOf<BiangBiangContext> {
 /**
  * Builds and remembers a [BiangBiangContext], collecting the reactive
  * `selectedVariantId` from [settings]. Called once from [BiangBiangRoot].
+ *
+ * This is the ONLY supported way to create a [BiangBiangContext]: the holder's
+ * `derivedStateOf` seams require construction inside this `remember(...)`
+ * scope (see the construction invariant on [BiangBiangContext]). Do not
+ * instantiate `BiangBiangContext` directly.
  */
 @Composable
 internal fun rememberBiangBiangContext(

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
+import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 import dev.veeso.biangbiangui.services.TextProcessingEngine
 import dev.veeso.biangbiangui.ui.AppDesign
@@ -43,6 +44,15 @@ class TextModeViewModel : ViewModel() {
 
     private var engine: TextProcessingEngine? = null
     private var debounceJob: Job? = null
+
+    /**
+     * The ML Kit [Translator] for the in-flight [translate] call. It is a
+     * native [java.io.Closeable] holding a translation model, so it MUST be
+     * closed once its terminal state (success or failure) is reached. Tracked
+     * here so an in-flight translator that outlives the ViewModel is also
+     * closed in [onCleared].
+     */
+    private var activeTranslator: Translator? = null
 
     /** Result of processing the current input; emitted to plugins by the screen. */
     var onProcessed: ((original: String, transliteration: String) -> Unit)? = null
@@ -104,18 +114,41 @@ class TextModeViewModel : ViewModel() {
             .setTargetLanguage(target)
             .build()
 
+        // Close any previous in-flight translator before starting a new one,
+        // then track this one so its native model is released on the terminal
+        // state (success/failure) and in onCleared() if it outlives the VM.
+        activeTranslator?.close()
         val translator = Translation.getClient(options)
+        activeTranslator = translator
+
+        fun release() {
+            translator.close()
+            if (activeTranslator === translator) activeTranslator = null
+        }
 
         translator.downloadModelIfNeeded()
             .addOnSuccessListener {
                 translator.translate(text)
-                    .addOnSuccessListener { translated -> _translatedText.value = translated }
+                    .addOnSuccessListener { translated ->
+                        _translatedText.value = translated
+                        release()
+                    }
                     .addOnFailureListener { e ->
                         _translatedText.value = "⚠️ Translation failed: ${e.message}"
+                        release()
                     }
             }
             .addOnFailureListener { e ->
                 _translatedText.value = "⚠️ Model download failed: ${e.message}"
+                release()
             }
+    }
+
+    override fun onCleared() {
+        // Release the native translation model if a translate() call is still
+        // in flight when the ViewModel is destroyed.
+        activeTranslator?.close()
+        activeTranslator = null
+        super.onCleared()
     }
 }
