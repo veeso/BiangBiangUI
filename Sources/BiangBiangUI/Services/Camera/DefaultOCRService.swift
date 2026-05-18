@@ -33,6 +33,9 @@ public struct DefaultOCRService: OCRService {
                 Self.recognitionLanguages(for: recognizer)
             request.recognitionLevel = .accurate
             let handler = VNImageRequestHandler(cgImage: image, options: [:])
+            // `handler.perform` only throws for handler-level errors (invalid image
+            // format); those errors do NOT invoke the completion handler, so the
+            // continuation resumes exactly once in either branch.
             do {
                 try handler.perform([request])
             } catch {

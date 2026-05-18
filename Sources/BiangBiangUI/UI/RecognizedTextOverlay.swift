@@ -11,8 +11,11 @@
 //    • Long-press save: `ctx.settings.addHistory(original:transliteration:variantId:)`
 //      with `ctx.activeVariant?.id ?? ""`, replacing the reference's Cantonese/
 //      Mandarin `HistoryVariant` enum (which is app-specific).
-//    • Font scaling, coordinate math, toast wiring — ALL verbatim from reference.
-//    • Vision → view coordinate conversion is copied without alteration.
+//    • Font scaling, toast wiring — verbatim from reference.
+//    • Coordinate conversion: rewritten for the OCRService seam. Boxes now
+//      arrive in source-image pixel space (top-left origin); the live-preview
+//      path normalises back to Vision's metadata rect so the visible
+//      placement is identical to the pre-seam behaviour.
 //
 
 #if canImport(UIKit)
@@ -27,8 +30,9 @@
     /// - Long-press: saves the entry to history via `ctx.settings.addHistory` and
     ///   shows the global saved toast.
     ///
-    /// Vision → view coordinate conversion is performed verbatim from the reference;
-    /// do not alter the `visionToViewRect` / `imageRect` math.
+    /// Coordinate conversion (`pixelRectToViewRect` / `aspectFitRect`) maps
+    /// `OCRService` pixel-space boxes onto the view; the live-preview branch
+    /// preserves the pre-seam `layerRectConverted` placement exactly.
     public struct RecognizedTextOverlay: View {
         @Environment(BiangBiangContext.self) private var ctx
         @State private var isCopied = false
@@ -60,7 +64,7 @@
         }
 
         public var body: some View {
-            let frame = visionToViewRect(boundingBox.boundingBox, in: viewSize)
+            let frame = pixelRectToViewRect(boundingBox.pixelRect, in: viewSize)
             let textToDisplay = cameraModel.showTransliteration ? transliteration : original
             let scaleRatio =
                 cameraModel.showTransliteration
@@ -204,24 +208,39 @@
             }
         }
 
-        // MARK: - Vision → view coordinate conversion (verbatim — do not alter)
+        // MARK: - Pixel-rect → view coordinate conversion
 
-        /// Convert Vision-normalized rect (image space, bottom-left origin) to view rect.
-        /// X is mirrored relative to `layerRectConverted(fromMetadataOutputRect:)` because the
-        /// preview connection runs at `videoRotationAngle = 0` (sensor-landscape) while Vision
-        /// returns coords in sensor-up space — for the back camera in portrait, that mismatch
-        /// flips the x-axis. TODO: drive Vision off the same orientation as the preview connection
-        /// so this manual flip is no longer needed.
-        private func visionToViewRect(_ rect: CGRect, in size: CGSize) -> CGRect {
-            // Captured/gallery image: map against the aspect-fit rect of the displayed image,
-            // not the preview layer (whose aspect ratio belongs to the live camera sensor).
-            if let image = cameraModel.capturedImage {
-                return imageRect(rect, image: image, in: size)
+        /// Convert an `OCRService` box (source-image pixel space, top-left
+        /// origin) to a view-space rect.
+        ///
+        /// Two display contexts, mirroring the pre-seam behaviour:
+        /// - Captured/gallery still: the image is shown `scaledToFit`, so the
+        ///   box is mapped onto that aspect-fit rect using the source image's
+        ///   pixel size.
+        /// - Live preview: `AVCaptureVideoPreviewLayer` owns the sensor→view
+        ///   transform. We normalise `pixelRect` back to Vision's metadata
+        ///   rect (0–1, bottom-left) and feed the *unchanged*
+        ///   `layerRectConverted(fromMetadataOutputRect:)` + x-flip path, so
+        ///   the visible placement is identical to before the OCRService seam.
+        private func pixelRectToViewRect(_ rect: CGRect, in size: CGSize) -> CGRect {
+            let imageSize = cameraModel.lastImagePixelSize
+            guard imageSize.width > 0, imageSize.height > 0 else { return .zero }
+
+            if cameraModel.capturedImage != nil {
+                return aspectFitRect(rect, imageSize: imageSize, in: size)
             }
 
             if let previewLayer = cameraModel.previewLayer {
+                // Invert DefaultOCRService.pixelRect(fromVisionNormalized:):
+                // pixel (top-left) → Vision metadata rect (0–1, bottom-left).
+                let nW = rect.width / imageSize.width
+                let nH = rect.height / imageSize.height
+                let nX = rect.minX / imageSize.width
+                let nY = 1 - rect.minY / imageSize.height - nH
+                let normalized = CGRect(x: nX, y: nY, width: nW, height: nH)
+
                 let videoRect = previewLayer.layerRectConverted(
-                    fromMetadataOutputRect: rect
+                    fromMetadataOutputRect: normalized
                 )
                 let flippedX = size.width - videoRect.origin.x - videoRect.width
                 return CGRect(
@@ -232,22 +251,18 @@
                 )
             }
 
-            // Fallback when preview layer is unavailable.
-            let x = rect.minX * size.width
-            let y = rect.midY * size.height
-            let width = rect.width * size.width
-            let height = rect.height * size.height
-            return CGRect(x: x, y: y, width: width, height: height)
+            // Fallback when preview layer is unavailable: aspect-fit map.
+            return aspectFitRect(rect, imageSize: imageSize, in: size)
         }
 
-        /// Map Vision's normalized rect (bottom-left origin) onto the displayed
-        /// `scaledToFit` rect of `image` inside `viewSize`.
-        private func imageRect(
+        /// Map a pixel-space rect (top-left origin) onto the `scaledToFit`
+        /// display rect of an image of `imageSize` inside `viewSize`. No
+        /// y-flip: pixel space and view space share a top-left origin.
+        private func aspectFitRect(
             _ rect: CGRect,
-            image: UIImage,
+            imageSize: CGSize,
             in viewSize: CGSize
         ) -> CGRect {
-            let imageSize = image.size
             guard imageSize.width > 0, imageSize.height > 0,
                   viewSize.width > 0, viewSize.height > 0
             else { return .zero }
@@ -261,11 +276,12 @@
             let offsetX = (viewSize.width - displayW) * 0.5
             let offsetY = (viewSize.height - displayH) * 0.5
 
-            let x = offsetX + rect.minX * displayW
-            let y = offsetY + (1 - rect.maxY) * displayH
-            let width = rect.width * displayW
-            let height = rect.height * displayH
-            return CGRect(x: x, y: y, width: width, height: height)
+            return CGRect(
+                x: offsetX + rect.minX * scale,
+                y: offsetY + rect.minY * scale,
+                width: rect.width * scale,
+                height: rect.height * scale
+            )
         }
     }
 
