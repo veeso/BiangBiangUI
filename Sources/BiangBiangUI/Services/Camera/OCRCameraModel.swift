@@ -396,6 +396,26 @@
             return CIContext().createCGImage(ci, from: ci.extent)
         }
 
+        /// Returns an upright `CGImage` for a still `UIImage`, baking
+        /// `imageOrientation` into the pixels.
+        ///
+        /// `OCRService` deliberately takes only a `CGImage` (no orientation),
+        /// mirroring the Android side which passes an upright `Bitmap`. The
+        /// pipeline owns frame normalisation: the live path already yields an
+        /// upright sensor image via `cgImage(from:)`; this does the same for
+        /// the captured/gallery still path so detected boxes and the
+        /// pixel→view aspect-fit overlay are correct.
+        nonisolated static func uprightCGImage(from image: UIImage) -> CGImage? {
+            if image.imageOrientation == .up { return image.cgImage }
+            let format = UIGraphicsImageRendererFormat.default()
+            format.scale = image.scale
+            let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+            let normalized = renderer.image { _ in
+                image.draw(in: CGRect(origin: .zero, size: image.size))
+            }
+            return normalized.cgImage
+        }
+
         /// Applies `OCRService` results: publishes the boxes (pixel-space,
         /// top-left) and rebuilds the transliteration map via the engine.
         @MainActor
@@ -417,7 +437,7 @@
         }
 
         private func recognizeText(from image: UIImage) {
-            guard let cgImage = image.cgImage else { return }
+            guard let cgImage = Self.uprightCGImage(from: image) else { return }
             let service = self.service
             let recognizer = self.recognizer
             let engine = self.engine
