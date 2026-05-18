@@ -17,7 +17,9 @@ import dev.veeso.biangbiangui.protocols.OcrService
 import dev.veeso.biangbiangui.services.TextProcessingEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** A recognised text element already in upright/display coordinates. */
 data class OcrBox(
@@ -92,12 +94,18 @@ class StillImageOcr(
 /**
  * Throttled live-camera OCR analyzer.
  *
- * The frame is normalised to an UPRIGHT [Bitmap] by the single correct
- * [OcrRotation] implementation BEFORE the injected [service] sees it, so the
- * service contract (image-pixel space) holds and the rotation authority stays
+ * The frame is normalised to an UPRIGHT [Bitmap] by the single library-owned
+ * [OcrRotation] path BEFORE the injected [service] sees it, so the service
+ * contract (image-pixel space) holds and the rotation authority stays
  * library-owned. ML Kit returns boxes already upright, so the upright basis is
  * the buffer dims *swapped* for 90/270 (see [OcrRotation]). [onResult]
  * receives the sane boxes plus the upright (width, height) to scale against.
+ *
+ * Lifecycle: holds a private [CoroutineScope]. Callers MUST [close] the
+ * analyzer when it is replaced (e.g. profile change) or leaves use, which
+ * cancels any in-flight recognition. At most one recognition runs at a time
+ * (see [busy]): frames arriving while one is in flight are dropped, which both
+ * bounds work and guarantees [onResult] is delivered in frame order.
  */
 class LiveOcrAnalyzer(
     private val service: OcrService,
@@ -105,10 +113,11 @@ class LiveOcrAnalyzer(
     private val engine: TextProcessingEngine,
     private val throttleMs: Long = 1000L,
     private val onResult: (List<OcrBox>, Int, Int) -> Unit,
-) : ImageAnalysis.Analyzer {
+) : ImageAnalysis.Analyzer, AutoCloseable {
 
     private var lastProcessedTime = 0L
     private val scope = CoroutineScope(Dispatchers.Default)
+    private val busy = AtomicBoolean(false)
 
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
@@ -117,15 +126,23 @@ class LiveOcrAnalyzer(
             imageProxy.close()
             return
         }
+        // Drop this frame if a recognition is still in flight: overlapping
+        // recognitions could deliver onResult out of order (stale boxes
+        // winning), and this also bounds work to one coroutine at a time.
+        if (!busy.compareAndSet(false, true)) {
+            imageProxy.close()
+            return
+        }
         lastProcessedTime = now
 
         val mediaImage = imageProxy.image ?: run {
+            busy.set(false)
             imageProxy.close()
             return
         }
 
         val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-        // Single correct rotation basis: feed the UNROTATED buffer dims (same
+        // Library-owned rotation basis: feed the UNROTATED buffer dims (same
         // as the pre-seam code) so the isSane basis and the (w,h) sent to the
         // overlay are unchanged. ML Kit boxes are already upright.
         val upright = OcrRotation.uprightSize(
@@ -133,22 +150,34 @@ class LiveOcrAnalyzer(
             bufferHeight = mediaImage.height,
             rotationDegrees = rotationDegrees,
         )
+        // toUprightBitmap drains all planes eagerly, so the proxy is safe to
+        // close immediately; the in-flight (w,h) is this frame's upright.
         val bitmap = OcrRotation.toUprightBitmap(imageProxy, rotationDegrees)
         imageProxy.close()
 
         scope.launch {
-            val boxes = service.recognize(bitmap, recognizer)
-                .mapNotNull { tb ->
-                    val tl = engine.process(tb.text) ?: return@mapNotNull null
-                    OcrBox(tb.text, tl, tb.left, tb.top, tb.width, tb.height)
-                }
-                .filter {
-                    OcrRotation.isSane(
-                        OcrRotation.Box(it.left, it.top, it.width, it.height),
-                        upright,
-                    )
-                }
-            onResult(boxes, upright.width, upright.height)
+            try {
+                val boxes = service.recognize(bitmap, recognizer)
+                    .mapNotNull { tb ->
+                        val tl = engine.process(tb.text) ?: return@mapNotNull null
+                        OcrBox(tb.text, tl, tb.left, tb.top, tb.width, tb.height)
+                    }
+                    .filter {
+                        OcrRotation.isSane(
+                            OcrRotation.Box(it.left, it.top, it.width, it.height),
+                            upright,
+                        )
+                    }
+                onResult(boxes, upright.width, upright.height)
+            } finally {
+                busy.set(false)
+            }
         }
+    }
+
+    /** Cancels any in-flight recognition; call when this analyzer is replaced
+     *  or leaves use so its [scope] does not outlive it. */
+    override fun close() {
+        scope.cancel()
     }
 }
