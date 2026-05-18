@@ -53,7 +53,7 @@ internal fun recognizerFor(recognizer: OcrRecognizer): TextRecognizer = when (re
 }
 
 /**
- * One-shot still-image OCR. Ported from the reference `OcrService`; the
+ * One-shot still-image OCR. Ported from the reference app OcrService class; the
  * hard-coded Chinese recognizer/`TextProcessor` are replaced by the injected
  * [recognizer]/[engine] selected from the active `LanguageProfile`.
  */
