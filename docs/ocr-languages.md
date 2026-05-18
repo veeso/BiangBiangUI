@@ -12,13 +12,19 @@ platform, so config authors know which scripts work before shipping an app.
 
 ## Summary
 
-| `OCRRecognizer` | iOS (Vision)         | Android (ML Kit)             |
-| --------------- | -------------------- | ---------------------------- |
-| `chinese`       | ✅ native             | ✅ native                     |
-| `latin`         | ✅ native             | ✅ native                     |
-| `arabic`        | ✅ native (Vision R3) | ✅ via OcrService (Tesseract) |
-| `japanese`      | ✅ native             | ✅ native                     |
-| `korean`        | ✅ native             | ✅ native                     |
+| `OCRRecognizer` | iOS (Vision)         | Android (ML Kit)             | Transliteration standard           |
+| --------------- | -------------------- | ---------------------------- | ---------------------------------- |
+| `chinese`       | ✅ native             | ✅ native                     | Hanyu Pinyin (Cantonese: Jyutping) |
+| `latin`         | ✅ native             | ✅ native                     | — (no transliteration)             |
+| `arabic`        | ✅ native (Vision R3) | ✅ via OcrService (Tesseract) | Arabic vocalization (ḥarakāt)      |
+| `japanese`      | ✅ native             | ✅ native                     | Hepburn rōmaji                     |
+| `korean`        | ✅ native             | ✅ native                     | Revised Romanization (RR)          |
+
+Transliteration is not performed by the OCR engine. It is supplied by the
+app's `Transliterator` per `LanguageVariant`; the standard column lists what
+the bundled examples use (`chinese`, `arabic`) or the conventional choice
+for scripts without a shipped example (`japanese`, `korean`). An app may
+implement any scheme it wants.
 
 All recognizers also pick up Latin characters in the same frame (digits,
 punctuation, embedded ASCII), preserved in place by `TextProcessingEngine`.
