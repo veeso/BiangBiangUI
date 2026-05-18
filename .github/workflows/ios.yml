@@ -43,8 +43,6 @@ jobs:
           XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
           echo "Selecting $XCODE"
           sudo xcode-select -s "$XCODE"
-      - name: Build & unit test (SwiftPM)
-        run: swift test
       - name: Create iOS simulator
         id: sim
         run: |
@@ -58,7 +56,7 @@ jobs:
           SIM_ID=$(xcrun simctl create ci-iphone "$DEVTYPE" "$RUNTIME")
           xcrun simctl boot "$SIM_ID" || true
           echo "sim_id=$SIM_ID" >> "$GITHUB_OUTPUT"
-      - name: UI/Vision test (xcodebuild)
+      - name: Build & test (xcodebuild)
         env:
           SIM_ID: ${{ steps.sim.outputs.sim_id }}
         run: |
