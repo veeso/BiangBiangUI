@@ -1,6 +1,7 @@
 @testable import BiangBiangUI
 import CoreGraphics
 import Testing
+import UIKit
 
 struct OCRServiceSeamTests {
     struct StubService: OCRService {
@@ -52,5 +53,19 @@ struct OCRServiceSeamTests {
             ocrRecognizer: .chinese, variants: []
         )
         #expect(OCRCameraModel.resolveService(p) is DefaultOCRService)
+    }
+
+    @Test func uprightCGImageTransposesRotatedImage() throws {
+        let ctx = try #require(CGContext(
+            data: nil, width: 4, height: 2, bitsPerComponent: 8,
+            bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        let base = try #require(ctx.makeImage())
+        // 4x2 source; .right orientation → upright should be 2x4.
+        let rotated = UIImage(cgImage: base, scale: 1, orientation: .right)
+        let upright = OCRCameraModel.uprightCGImage(from: rotated)
+        #expect(upright?.width == 2)
+        #expect(upright?.height == 4)
     }
 }

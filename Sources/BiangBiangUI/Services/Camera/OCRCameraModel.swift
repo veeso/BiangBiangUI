@@ -26,7 +26,7 @@
         }
     }
 
-    /// AVFoundation + Vision camera model, generalised for any `LanguageProfile`.
+    /// AVFoundation + OCR camera model, generalised for any `LanguageProfile`.
     ///
     /// Ported from `CameraModel` in BiangBiang Hanzi. Generalisations:
     /// - Initialised with a `LanguageProfile` and an injected `TextProcessingEngine`.
@@ -40,7 +40,7 @@
     {
         // MARK: - Public observable state
 
-        /// Recognised text boxes from the most recent Vision pass.
+        /// Recognised text boxes from the most recent OCR pass.
         public var recognizedTexts: [RecognizedTextBox] = []
         /// Maps each box's `id` to the engine-processed transliteration string.
         /// `nil`-return from the engine means no script was found; that box is absent.
@@ -388,12 +388,17 @@
 
         // MARK: - Private: OCR plumbing
 
+        /// Shared `CIContext` reused across all live-frame conversions.
+        /// `CIContext` is thread-safe, so a single static instance is correct
+        /// and avoids the per-frame allocation cost of `CIContext()`.
+        nonisolated static let ciContext = CIContext()
+
         /// Builds a still `CGImage` from a live camera frame. The resulting
         /// image is in the sensor's native pixel space, matching the
         /// coordinate space `OCRService` returns boxes in.
         nonisolated static func cgImage(from pixelBuffer: CVPixelBuffer) -> CGImage? {
             let ci = CIImage(cvPixelBuffer: pixelBuffer)
-            return CIContext().createCGImage(ci, from: ci.extent)
+            return Self.ciContext.createCGImage(ci, from: ci.extent)
         }
 
         /// Returns an upright `CGImage` for a still `UIImage`, baking
