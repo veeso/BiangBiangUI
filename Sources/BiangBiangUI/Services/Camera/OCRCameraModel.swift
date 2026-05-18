@@ -30,8 +30,8 @@
     /// - No app-specific Quran/history state; all other behaviour is verbatim.
     @Observable
     @MainActor
-    public final class OCRCameraModel: NSObject, @preconcurrency AVCapturePhotoCaptureDelegate,
-        @preconcurrency AVCaptureVideoDataOutputSampleBufferDelegate
+    public final class OCRCameraModel: NSObject, AVCapturePhotoCaptureDelegate,
+        AVCaptureVideoDataOutputSampleBufferDelegate
     {
         // MARK: - Public observable state
 
@@ -70,7 +70,12 @@
         // MARK: - Private
 
         @ObservationIgnored private let profile: LanguageProfile
-        @ObservationIgnored private let engine: TextProcessingEngine
+        /// `TextProcessingEngine` is `@unchecked Sendable`, so the nonisolated
+        /// camera-queue delegate can hand spans to it without an actor hop.
+        @ObservationIgnored private nonisolated let engine: TextProcessingEngine
+        /// Vision recognition languages, resolved once from `profile` at init so
+        /// the nonisolated frame delegate never touches main-actor state.
+        @ObservationIgnored private nonisolated let recognitionLanguages: [String]
 
         @ObservationIgnored private var device: AVCaptureDevice?
         @ObservationIgnored private var zoomSwitchOverFactor: CGFloat = 1.0
@@ -83,7 +88,13 @@
         )
         @ObservationIgnored private var textRequest: VNRecognizeTextRequest!
         @ObservationIgnored public var previewLayer: AVCaptureVideoPreviewLayer?
-        @ObservationIgnored private var lastProcessingTime = Date.distantPast
+        /// Throttle timestamp. Confined to the serial `queue` (the only thing
+        /// that reads/writes it is the nonisolated `captureOutput`).
+        @ObservationIgnored private nonisolated(unsafe) var lastProcessingTime = Date.distantPast
+        /// Mirrors `capturedImage != nil` for the nonisolated frame delegate so
+        /// it can suspend live OCR without touching main-actor state. A benign
+        /// cross-thread `Bool` race here costs at most one extra/dropped frame.
+        @ObservationIgnored private nonisolated(unsafe) var captureSuspended = false
         @ObservationIgnored private var isConfigured = false
 
         // MARK: - Init
@@ -91,6 +102,7 @@
         public init(profile: LanguageProfile, engine: TextProcessingEngine) {
             self.profile = profile
             self.engine = engine
+            recognitionLanguages = Self.recognitionLanguages(for: profile.ocrRecognizer)
         }
 
         // MARK: - Photo capture
@@ -101,7 +113,7 @@
         }
 
         /// `AVCapturePhotoCaptureDelegate` — receives the compressed photo data.
-        public func photoOutput(
+        public nonisolated func photoOutput(
             _: AVCapturePhotoOutput,
             didFinishProcessingPhoto photo: AVCapturePhoto,
             error _: Error?
@@ -109,20 +121,23 @@
             guard let imageData = photo.fileDataRepresentation(),
                   let image = UIImage(data: imageData)
             else { return }
-            capturedImage = image
-            recognizeText(from: image)
+            captureSuspended = true
+            Task { @MainActor in
+                self.capturedImage = image
+                self.recognizeText(from: image)
+            }
         }
 
         // MARK: - Live video output
 
         /// `AVCaptureVideoDataOutputSampleBufferDelegate` — throttled live OCR.
-        public func captureOutput(
+        public nonisolated func captureOutput(
             _: AVCaptureOutput,
             didOutput sampleBuffer: CMSampleBuffer,
             from _: AVCaptureConnection
         ) {
             // Do not capture while a still image is set.
-            if capturedImage != nil { return }
+            if captureSuspended { return }
 
             let now = Date()
             guard now.timeIntervalSince(lastProcessingTime) > 1 else { return }
@@ -148,6 +163,7 @@
 
         /// Loads `uiImage` as the active image and runs OCR on it.
         public func recognizeGalleryImage(_ uiImage: UIImage) {
+            captureSuspended = true
             capturedImage = uiImage
             recognizeText(from: uiImage)
         }
@@ -182,6 +198,7 @@
         /// Clears the active still image, returning the view to live-feed mode.
         public func deleteCapturedImage() {
             capturedImage = nil
+            captureSuspended = false
         }
 
         /// Stops the capture session on a background thread.
@@ -359,7 +376,7 @@
 
         /// Builds a `VNRecognizeTextRequest` whose completion handler posts
         /// results back to `@MainActor`.
-        private func makeTextRecognitionRequest() -> VNRecognizeTextRequest {
+        private nonisolated func makeTextRecognitionRequest() -> VNRecognizeTextRequest {
             let request = VNRecognizeTextRequest { [weak self] req, _ in
                 guard let self,
                       let results = req.results as? [VNRecognizedTextObservation]
@@ -383,7 +400,7 @@
                     }
                 }
             }
-            request.recognitionLanguages = Self.recognitionLanguages(for: profile.ocrRecognizer)
+            request.recognitionLanguages = recognitionLanguages
             request.recognitionLevel = .accurate
             return request
         }

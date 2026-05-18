@@ -136,6 +136,11 @@
             .task {
                 await cameraModel.checkPermissionsAndStart()
             }
+            .onDisappear {
+                cameraModel.recognizedTexts = []
+                cameraModel.transliterationMap.removeAll()
+                Task { await cameraModel.stopSession() }
+            }
             // Plugin camera seam: fire onProcessedText for each box whenever the
             // recognised set changes, then present the first inline view as a sheet.
             // Inert when ctx.config.plugins is empty (Chinese/no-plugin apps).
@@ -170,7 +175,7 @@
                                 Circle()
                                     .fill(
                                         isActive
-                                            ? Color.red.opacity(0.85)
+                                            ? ctx.config.branding.accentColor.opacity(0.85)
                                             : Color.gray.opacity(0.6)
                                     )
                                     .shadow(radius: 3)
@@ -223,7 +228,7 @@
                         Circle()
                             .fill(
                                 cameraModel.showTransliteration
-                                    ? Color.red.opacity(0.8)
+                                    ? ctx.config.branding.accentColor.opacity(0.8)
                                     : Color.gray.opacity(0.8)
                             )
                             .shadow(radius: AppDesign.buttonShadow)
