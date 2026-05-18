@@ -63,6 +63,8 @@ Full names (search these to find the row):
   `SystemTtsAudioProvider`
 - `Camera*` → `CameraPreview` (iOS) / `CameraUtils` (Android)
 - `TextProcessing...` → `TextProcessingEngine`
+- `StillImageOcr` → former Android `services/camera/OcrService` class,
+  renamed to free the name for the protocol (D13)
 
 ## Library: configuration
 
@@ -88,6 +90,8 @@ iOS `Protocols/<name>.swift`; Android `protocols/<name>.kt`.
 | -------------- | ---------------- | ----------------------------------- |
 | AudioProvider  | `AudioProvider`  | Same surface: speak/stop, async     |
 | FeaturePlugin  | `FeaturePlugin`  | Same surface: tab meta + view slot  |
+| OCRService     | `OCRService`     | Same: `recognize(image,recognizer)` |
+| OCRTextBox     | `OCRTextBox`     | Same value: text + bounding rect    |
 | ProcessedText  | `ProcessedText`  | Same surface: source + variant      |
 | Transliterator | `Transliterator` | Same: `transliterate(span)->String` |
 
@@ -95,28 +99,30 @@ iOS `Protocols/<name>.swift`; Android `protocols/<name>.kt`.
 
 iOS files are `Services/<stem>.swift`; Android `services/<stem>.kt`. Stems
 match (modulo case, e.g. iOS `OCRCameraModel`/`SystemTTSAudioProvider` vs
-Android `OcrService`/`SystemTtsAudioProvider`) unless a row notes a real
+Android `StillImageOcr`/`SystemTtsAudioProvider`) unless a row notes a real
 divergence.
 
-| Type / file          | Stem                 | Parity     |
-| -------------------- | -------------------- | ---------- |
-| HistoryEntry         | `HistoryEntry`       | Same value |
-| HistoryStore         | `HistoryStore`       | Same behav |
-| History codec        | `HistorySerializer`  | Same; D12  |
-| ReviewPromptPolicy   | `ReviewPromptPolicy` | D1         |
-| SettingsStore        | `SettingsStore`      | D2         |
-| System TTS provider  | `System*AudioProv.`  | D3         |
-| TextProcessingEngine | `TextProcessing...`  | Same       |
-| Camera preview glue  | `Camera*`/`Camera*`  | Same role  |
-| CameraZoom           | `Camera/CameraZoom`  | Same behav |
-| OCR camera model     | `*OCR*`/`OcrService` | D4         |
-| OCR rotation         | `*`/`OcrRotation`    | D5         |
+| Type / file          | Stem                    | Parity     |
+| -------------------- | ----------------------- | ---------- |
+| HistoryEntry         | `HistoryEntry`          | Same value |
+| HistoryStore         | `HistoryStore`          | Same behav |
+| History codec        | `HistorySerializer`     | Same; D12  |
+| ReviewPromptPolicy   | `ReviewPromptPolicy`    | D1         |
+| SettingsStore        | `SettingsStore`         | D2         |
+| System TTS provider  | `System*AudioProv.`     | D3         |
+| TextProcessingEngine | `TextProcessing...`     | Same       |
+| Camera preview glue  | `Camera*`/`Camera*`     | Same role  |
+| CameraZoom           | `Camera/CameraZoom`     | Same behav |
+| OCR camera model     | `*OCR*`/`StillImageOcr` | D4 D13     |
+| OCR rotation         | `*`/`OcrRotation`       | D5 D13     |
 
 iOS history codec is inline in `HistoryStore`; Android extracts
 `HistorySerializer` (D12). iOS camera-preview glue is
 `Services/Camera/CameraPreview.swift`; Android is
 `services/camera/CameraUtils.kt`. iOS OCR rotation is inline in the Vision
-path; Android isolates `services/camera/OcrRotation.kt` (D5).
+path; Android isolates `services/camera/OcrRotation.kt` (D5). The Android
+still-image OCR class was `services/camera/OcrService.kt` and was renamed
+`StillImageOcr` to free the `OcrService` name for the new protocol (D13).
 
 ## Library: UI screens and components
 
@@ -297,6 +303,32 @@ and unit-tests it directly (`HistorySerializerTest`). iOS keeps the codec
 inside `SettingsStore`/`HistoryStore` and exercises it through the store
 round-trip tests. Same behaviour, different factoring.
 
+### D13 OCRService platform-internal differences
+
+Three Android-only details in the `OCRService` seam are deliberate and do
+not represent parity breaks:
+
+1. **`StillImageOcr` rename.** The Android class that drives still-image
+   Vision was originally named `services/camera/OcrService.kt`. It was
+   renamed `StillImageOcr` to free the unqualified name `OcrService` for
+   the new protocol. No iOS analogue because the iOS equivalent
+   (`OCRCameraModel`) never shared a name with the protocol.
+
+2. **`OcrRotation.toUprightBitmap`.** Android adds a
+   `toUprightBitmap(image, rotation)` extension on `OcrRotation` that
+   normalises a live `ImageProxy` frame to an upright `Bitmap` before
+   passing it to the `OcrService`. iOS normalises the frame inline in the
+   Vision path. Both keep a single rotation authority per platform (D5
+   covers the broader rotation-isolation decision); this is the concrete
+   method that enforces it.
+
+3. **Arabic example: `OcrService` injection.** iOS Arabic uses the
+   built-in Vision default — Vision R3 recognises Arabic natively — so
+   `LanguageProfile.ocrService` is `nil`. Android Arabic injects a
+   `TesseractOcrService` (Tesseract4Android, `ara.traineddata` bundled)
+   because ML Kit ships no Arabic model. The `OcrService` protocol seam
+   is the supported extension point for exactly this case.
+
 ## Test parity
 
 iOS uses Swift Testing `@Test` funcs in `Tests/BiangBiangUITests/`; Android
@@ -456,7 +488,7 @@ gap.
 Every iOS library type/file, both example apps, and the Quran plugin map to
 an Android counterpart with equivalent public surface and behaviour. All
 divergences are accounted for: four named spec SDK substitutions (D3, D4, D6,
-D9) and eight sanctioned execution decisions (D1, D2, D5, D7, D8, D10, D11,
-D12). The mirrored test sets match 1:1 modulo the explained platform-only
-`LiveOcrAnalyzerTest` and the factoring-driven test relocations noted above.
-No unintended parity break was found.
+D9) and nine sanctioned execution decisions (D1, D2, D5, D7, D8, D10, D11,
+D12, D13). The mirrored test sets match 1:1 modulo the explained
+platform-only `LiveOcrAnalyzerTest` and the factoring-driven test relocations
+noted above. No unintended parity break was found.
