@@ -81,6 +81,48 @@ LanguageProfile(
 )
 ```
 
+## Minimal implementation
+
+A custom service that handles one script and delegates the rest to the
+built-in default.
+
+Swift:
+
+```swift
+struct MyOCRService: OCRService {
+    private let fallback = DefaultOCRService()
+
+    func recognize(_ image: CGImage,
+                    recognizer: OCRRecognizer) async -> [OCRTextBox] {
+        guard recognizer == .arabic else {
+            return await fallback.recognize(image, recognizer: recognizer)
+        }
+        let runs = MyEngine.read(image)            // your OCR call
+        return runs.map { OCRTextBox(text: $0.text, rect: $0.pixelRect) }
+    }
+}
+```
+
+Kotlin:
+
+```kotlin
+class MyOcrService : OcrService {
+    private val fallback = DefaultOcrService()
+
+    override suspend fun recognize(
+        bitmap: Bitmap?,
+        recognizer: OcrRecognizer,
+    ): List<OcrTextBox> {
+        if (recognizer != OcrRecognizer.ARABIC || bitmap == null) {
+            return fallback.recognize(bitmap, recognizer)
+        }
+        return MyEngine.read(bitmap).map {           // your OCR call
+            OcrTextBox(it.text, it.left, it.top, it.width, it.height)
+        }
+    }
+}
+```
+
 ## A real example
 
 The Android Arabic example ships a working `TesseractOcrService`
