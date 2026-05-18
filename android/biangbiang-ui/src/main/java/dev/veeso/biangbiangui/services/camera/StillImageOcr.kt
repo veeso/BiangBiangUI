@@ -57,7 +57,7 @@ internal fun recognizerFor(recognizer: OcrRecognizer): TextRecognizer = when (re
  * hard-coded Chinese recognizer/`TextProcessor` are replaced by the injected
  * [recognizer]/[engine] selected from the active `LanguageProfile`.
  */
-class OcrService(
+class StillImageOcr(
     recognizerKind: OcrRecognizer,
     private val engine: TextProcessingEngine,
 ) {
