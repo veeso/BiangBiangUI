@@ -35,4 +35,22 @@ struct OCRServiceSeamTests {
         // top-left y = (1 - 0.10 - 0.20) * 100 = 70
         #expect(pixel == CGRect(x: 50, y: 70, width: 100, height: 20))
     }
+
+    @Test func profileDefaultsToNilService() {
+        let p = LanguageProfile(
+            id: "zh", displayName: "Chinese",
+            scriptRanges: [0x4E00 ... 0x9FFF],
+            ocrRecognizer: .chinese, variants: []
+        )
+        #expect(p.ocrService == nil)
+    }
+
+    @Test func resolvedServiceFallsBackToDefault() {
+        let p = LanguageProfile(
+            id: "zh", displayName: "Chinese",
+            scriptRanges: [0x4E00 ... 0x9FFF],
+            ocrRecognizer: .chinese, variants: []
+        )
+        #expect(OCRCameraModel.resolveService(p) is DefaultOCRService)
+    }
 }
