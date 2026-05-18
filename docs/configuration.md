@@ -157,7 +157,9 @@ non-script characters (Latin, digits, punctuation, emoji) are preserved in
 place.
 
 `OCRRecognizer` (iOS) / `OcrRecognizer` (Android) cases: `chinese`,
-`latin`, `arabic`, `japanese`, `korean`.
+`latin`, `arabic`, `japanese`, `korean`. Which scripts each case actually
+recognizes per platform is documented in
+[OCR language support](./ocr-languages.md).
 
 ## LanguageVariant
 
