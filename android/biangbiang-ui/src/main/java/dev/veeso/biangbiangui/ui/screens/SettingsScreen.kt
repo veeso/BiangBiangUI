@@ -170,37 +170,6 @@ fun SettingsScreen() {
                 }
             }
 
-            SettingsSection(title = ctx.config.strings.tabHistory) {
-                OutlinedButton(
-                    onClick = { showClearConfirm = true },
-                    enabled = history.isNotEmpty(),
-                ) {
-                    Text(ctx.config.strings.clearAll)
-                }
-            }
-
-            SettingsSection(title = ctx.config.strings.reportBug) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Button(onClick = {
-                        openGitHubIssues(context, ctx.config.branding.githubRepo)
-                    }) {
-                        Text(ctx.config.strings.openGithubIssues)
-                    }
-                    Button(onClick = {
-                        sendBugEmail(
-                            context,
-                            ctx.config.branding.supportEmail,
-                            ctx.config.branding.appName,
-                        )
-                    }) {
-                        Text(ctx.config.strings.sendEmail)
-                    }
-                }
-            }
-
             // --- Layer 2: data-driven variant picker ---
             val variants = ctx.activeProfile.variants
             if (variants.size > 1) {
@@ -235,6 +204,38 @@ fun SettingsScreen() {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                }
+            }
+
+            // --- Library-owned History + support, after app-defined settings ---
+            SettingsSection(title = ctx.config.strings.tabHistory) {
+                OutlinedButton(
+                    onClick = { showClearConfirm = true },
+                    enabled = history.isNotEmpty(),
+                ) {
+                    Text(ctx.config.strings.clearAll)
+                }
+            }
+
+            SettingsSection(title = ctx.config.strings.reportBug) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Button(onClick = {
+                        openGitHubIssues(context, ctx.config.branding.githubRepo)
+                    }) {
+                        Text(ctx.config.strings.openGithubIssues)
+                    }
+                    Button(onClick = {
+                        sendBugEmail(
+                            context,
+                            ctx.config.branding.supportEmail,
+                            ctx.config.branding.appName,
+                        )
+                    }) {
+                        Text(ctx.config.strings.sendEmail)
                     }
                 }
             }

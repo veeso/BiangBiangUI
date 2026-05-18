@@ -147,6 +147,7 @@ fun TextScreen(viewModel: TextModeViewModel = viewModel()) {
             LogoHeader(
                 appName = ctx.config.branding.appName,
                 logoAssetName = ctx.config.branding.logoAssetName,
+                subtitle = ctx.config.strings.appSubtitle,
             )
 
             SectionView(
@@ -286,7 +287,7 @@ fun TextScreen(viewModel: TextModeViewModel = viewModel()) {
 }
 
 @Composable
-private fun LogoHeader(appName: String, logoAssetName: String) {
+private fun LogoHeader(appName: String, logoAssetName: String, subtitle: String) {
     val context = LocalContext.current
     val logoResId = remember(logoAssetName) {
         context.resources.getIdentifier(
@@ -319,6 +320,17 @@ private fun LogoHeader(appName: String, logoAssetName: String) {
                 text = appName,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
+            )
+        }
+
+        // Optional tagline. Rendered only when the app supplies a non-empty
+        // appSubtitle, so apps that don't set it get no subtitle and no extra
+        // vertical space. Mirrors iOS TextScreen.logoHeader.
+        if (subtitle.isNotEmpty()) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(vertical = 4.dp),
             )
         }
     }

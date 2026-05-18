@@ -98,19 +98,30 @@
         // MARK: - Header
 
         private var logoHeader: some View {
-            HStack(spacing: 8) {
-                Image(ctx.config.branding.logoAssetName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 48, height: 48)
-                    .clipShape(.rect(cornerRadius: AppDesign.cornerRadius))
-                    .accessibilityHidden(true)
-                Text(ctx.config.branding.appName)
-                    .font(.title)
-                    .bold()
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    Image(ctx.config.branding.logoAssetName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                        .clipShape(.rect(cornerRadius: AppDesign.cornerRadius))
+                        .accessibilityHidden(true)
+                    Text(ctx.config.branding.appName)
+                        .font(.title)
+                        .bold()
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 16)
+
+                // Optional tagline. Rendered only when the app supplies a
+                // non-empty `appSubtitle`, so apps that don't set it get no
+                // subtitle and no extra vertical space.
+                if !ctx.config.strings.appSubtitle.isEmpty {
+                    Text(ctx.config.strings.appSubtitle)
+                        .font(.title2)
+                        .padding(.vertical, 4)
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 16)
         }
 
         // MARK: - Input section

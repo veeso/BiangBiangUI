@@ -5,6 +5,11 @@ package dev.veeso.biangbiangui.config
  * Mirrors iOS `UIStrings` (plan casing: `UiStrings`).
  */
 data class UiStrings(
+    /**
+     * Tagline under the app name on the Text screen. Empty by default so apps
+     * that don't set it render no subtitle (and no layout gap). Mirrors iOS.
+     */
+    val appSubtitle: String = "",
     val inputTitle: String = "Text",
     val outputTitle: String = "Transliteration",
     val translationTitle: String = "Translation",
@@ -45,6 +50,7 @@ data class UiStrings(
             if (overrides.isNullOrEmpty()) return UiStrings()
             val d = UiStrings() // single source of truth for defaults
             return UiStrings(
+                appSubtitle = overrides["appSubtitle"] ?: d.appSubtitle,
                 inputTitle = overrides["inputTitle"] ?: d.inputTitle,
                 outputTitle = overrides["outputTitle"] ?: d.outputTitle,
                 translationTitle = overrides["translationTitle"] ?: d.translationTitle,

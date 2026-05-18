@@ -78,9 +78,13 @@
 
             NavigationStack {
                 Form {
-                    sharedCoreSections(userLanguage: $settings.userLanguage)
+                    translationLanguageSection(userLanguage: $settings.userLanguage)
                     variantSection(selectedVariantId: $settings.selectedVariantId)
+                    // App-defined settings render directly after the
+                    // Translation language / variant controls, ahead of the
+                    // library's History + support sections.
                     descriptorSections()
+                    supportSections()
 
                     #if DEBUG
                         debugSection
@@ -108,7 +112,7 @@
         // MARK: - Layer 1: shared core
 
         @ViewBuilder
-        private func sharedCoreSections(userLanguage: Binding<String>) -> some View {
+        private func translationLanguageSection(userLanguage: Binding<String>) -> some View {
             let translatable = ctx.activeVariant?.translatable ?? true
 
             Section {
@@ -129,7 +133,12 @@
                     Text("Translation is unavailable for the selected variant.")
                 }
             }
+        }
 
+        /// Library-owned History + support sections, rendered after the
+        /// app-defined descriptor sections.
+        @ViewBuilder
+        private func supportSections() -> some View {
             Section {
                 Button(ctx.config.strings.clearAll, role: .destructive) {
                     showClearConfirm = true

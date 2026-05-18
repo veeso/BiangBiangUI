@@ -43,7 +43,16 @@
         public init() {}
 
         public var body: some View {
-            Group {
+            // A non-empty root is mandatory: SwiftUI's `TabView` does not create
+            // a tab item for a child whose content resolves to an empty view.
+            // Because `cameraModel` is built lazily in `.task` (the environment
+            // is unavailable at `@State` init), the first render must still
+            // produce a visible view — otherwise the Camera tab is dropped from
+            // the tab bar, its `.task` never runs, and the model is never built
+            // (a permanent deadlock that hides the whole camera feature).
+            ZStack {
+                Color.black.ignoresSafeArea()
+
                 if let cameraModel {
                     if cameraModel.missingCameraPermission {
                         CameraPermissionScreen(

@@ -1,4 +1,7 @@
 public struct UIStrings: Sendable {
+    /// Tagline under the app name on the Text screen. Empty by default so apps
+    /// that don't set it render no subtitle (and no layout gap).
+    public var appSubtitle = ""
     public var inputTitle = "Text"
     public var outputTitle = "Transliteration"
     public var translationTitle = "Translation"
@@ -38,6 +41,7 @@ public struct UIStrings: Sendable {
     static func merged(with overrides: [String: String]?) -> UIStrings {
         var s = UIStrings()
         guard let o = overrides else { return s }
+        if let v = o["appSubtitle"] { s.appSubtitle = v }
         if let v = o["inputTitle"] { s.inputTitle = v }
         if let v = o["outputTitle"] { s.outputTitle = v }
         if let v = o["translationTitle"] { s.translationTitle = v }
