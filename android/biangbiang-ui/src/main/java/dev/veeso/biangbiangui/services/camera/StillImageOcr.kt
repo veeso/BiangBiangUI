@@ -5,16 +5,19 @@ import androidx.annotation.OptIn
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import dev.veeso.biangbiangui.config.LanguageProfile
 import dev.veeso.biangbiangui.config.OcrRecognizer
+import dev.veeso.biangbiangui.protocols.OcrService
 import dev.veeso.biangbiangui.services.TextProcessingEngine
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /** A recognised text element already in upright/display coordinates. */
 data class OcrBox(
@@ -53,40 +56,33 @@ internal fun recognizerFor(recognizer: OcrRecognizer): TextRecognizer = when (re
 }
 
 /**
- * One-shot still-image OCR. Ported from the reference app OcrService class; the
- * hard-coded Chinese recognizer/`TextProcessor` are replaced by the injected
- * [recognizer]/[engine] selected from the active `LanguageProfile`.
+ * Resolves the OCR backend for a profile: the profile's [OcrService] override
+ * if present, otherwise the built-in ML Kit [DefaultOcrService]. Resolved once
+ * per camera session; rotation/spacing/transliteration stay library-owned.
+ */
+fun resolveOcrService(profile: LanguageProfile): OcrService =
+    profile.ocrService ?: DefaultOcrService()
+
+/**
+ * One-shot still-image OCR. The injected [service] performs raw recognition
+ * (image-pixel space, no transliteration); the pipeline adds `engine.process`
+ * and the `OcrRotation.isSane` filter so behaviour matches the pre-seam path.
  */
 class StillImageOcr(
-    recognizerKind: OcrRecognizer,
+    private val service: OcrService,
+    private val recognizer: OcrRecognizer,
     private val engine: TextProcessingEngine,
 ) {
-    private val recognizer = recognizerFor(recognizerKind)
-
     suspend fun recognize(bitmap: Bitmap): List<OcrBox> {
-        val image = InputImage.fromBitmap(bitmap, 0)
-        val result = recognizer.process(image).await()
         val upright = OcrRotation.UprightSize(bitmap.width, bitmap.height)
-        return result.textBlocks
-            .flatMap { it.lines }
-            .flatMap { it.elements }
-            .mapNotNull { element ->
-                val transliteration =
-                    engine.process(element.text) ?: return@mapNotNull null
-                element.boundingBox?.let { box ->
-                    OcrBox(
-                        text = element.text,
-                        transliteration = transliteration,
-                        left = box.left,
-                        top = box.top,
-                        width = box.width(),
-                        height = box.height(),
-                    )
-                }
+        return service.recognize(bitmap, recognizer)
+            .mapNotNull { tb ->
+                val tl = engine.process(tb.text) ?: return@mapNotNull null
+                OcrBox(tb.text, tl, tb.left, tb.top, tb.width, tb.height)
             }
-            .filter { b ->
+            .filter {
                 OcrRotation.isSane(
-                    OcrRotation.Box(b.left, b.top, b.width, b.height),
+                    OcrRotation.Box(it.left, it.top, it.width, it.height),
                     upright,
                 )
             }
@@ -96,23 +92,23 @@ class StillImageOcr(
 /**
  * Throttled live-camera OCR analyzer.
  *
- * Ported from the reference `LiveOcrAnalyzer`. The hard-coded Chinese
- * recognizer/`TextProcessor` are replaced by the injected
- * [recognizerKind]/[engine]. The rotation/coordinate math is delegated to the
- * single correct pure [OcrRotation] implementation: ML Kit returns boxes in
- * upright/display space, so the upright dimensions are the buffer dims
- * *swapped* for 90/270 and the overlay must use that same basis. [onResult]
+ * The frame is normalised to an UPRIGHT [Bitmap] by the single correct
+ * [OcrRotation] implementation BEFORE the injected [service] sees it, so the
+ * service contract (image-pixel space) holds and the rotation authority stays
+ * library-owned. ML Kit returns boxes already upright, so the upright basis is
+ * the buffer dims *swapped* for 90/270 (see [OcrRotation]). [onResult]
  * receives the sane boxes plus the upright (width, height) to scale against.
  */
 class LiveOcrAnalyzer(
-    recognizerKind: OcrRecognizer,
+    private val service: OcrService,
+    private val recognizer: OcrRecognizer,
     private val engine: TextProcessingEngine,
     private val throttleMs: Long = 1000L,
     private val onResult: (List<OcrBox>, Int, Int) -> Unit,
 ) : ImageAnalysis.Analyzer {
 
-    private val recognizer = recognizerFor(recognizerKind)
     private var lastProcessedTime = 0L
+    private val scope = CoroutineScope(Dispatchers.Default)
 
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
@@ -129,44 +125,30 @@ class LiveOcrAnalyzer(
         }
 
         val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-        val image = InputImage.fromMediaImage(mediaImage, rotationDegrees)
-
-        // Single correct rotation basis: ML Kit boxes are already upright, so
-        // the upright dimensions swap for 90/270 (see OcrRotation).
+        // Single correct rotation basis: feed the UNROTATED buffer dims (same
+        // as the pre-seam code) so the isSane basis and the (w,h) sent to the
+        // overlay are unchanged. ML Kit boxes are already upright.
         val upright = OcrRotation.uprightSize(
-            bufferWidth = image.width,
-            bufferHeight = image.height,
+            bufferWidth = mediaImage.width,
+            bufferHeight = mediaImage.height,
             rotationDegrees = rotationDegrees,
         )
+        val bitmap = OcrRotation.toUprightBitmap(imageProxy, rotationDegrees)
+        imageProxy.close()
 
-        recognizer.process(image)
-            .addOnSuccessListener { result ->
-                val boxes = result.textBlocks
-                    .flatMap { it.lines }
-                    .flatMap { it.elements }
-                    .mapNotNull { element ->
-                        val transliteration =
-                            engine.process(element.text) ?: return@mapNotNull null
-                        element.boundingBox?.let { box ->
-                            OcrBox(
-                                text = element.text,
-                                transliteration = transliteration,
-                                left = box.left,
-                                top = box.top,
-                                width = box.width(),
-                                height = box.height(),
-                            )
-                        }
-                    }
-                    .filter { b ->
-                        OcrRotation.isSane(
-                            OcrRotation.Box(b.left, b.top, b.width, b.height),
-                            upright,
-                        )
-                    }
-                onResult(boxes, upright.width, upright.height)
-            }
-            .addOnFailureListener { /* ignore for now */ }
-            .addOnCompleteListener { imageProxy.close() }
+        scope.launch {
+            val boxes = service.recognize(bitmap, recognizer)
+                .mapNotNull { tb ->
+                    val tl = engine.process(tb.text) ?: return@mapNotNull null
+                    OcrBox(tb.text, tl, tb.left, tb.top, tb.width, tb.height)
+                }
+                .filter {
+                    OcrRotation.isSane(
+                        OcrRotation.Box(it.left, it.top, it.width, it.height),
+                        upright,
+                    )
+                }
+            onResult(boxes, upright.width, upright.height)
+        }
     }
 }

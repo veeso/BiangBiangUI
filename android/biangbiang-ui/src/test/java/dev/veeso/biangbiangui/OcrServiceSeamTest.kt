@@ -25,4 +25,17 @@ class OcrServiceSeamTest {
             left = 5, top = 6, right = 25, bottom = 26)
         assertEquals(OcrTextBox("和", 5, 6, 20, 20), box)
     }
+
+    @Test
+    fun profileDefaultsToNullServiceAndResolvesToDefault() {
+        val p = dev.veeso.biangbiangui.config.LanguageProfile(
+            id = "zh", displayName = "Chinese",
+            scriptRanges = listOf(0x4E00u..0x9FFFu),
+            ocrRecognizer = OcrRecognizer.CHINESE,
+            variants = emptyList())
+        assertEquals(null, p.ocrService)
+        val resolved = dev.veeso.biangbiangui.services.camera
+            .resolveOcrService(p)
+        assert(resolved is DefaultOcrService)
+    }
 }
