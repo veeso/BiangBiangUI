@@ -186,6 +186,12 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
         )
     }
 
+    // Cancel the analyzer's coroutine scope when it is replaced (profile
+    // change) or this screen leaves composition, so it never outlives its use.
+    DisposableEffect(analyzer) {
+        onDispose { analyzer.close() }
+    }
+
     val cameraController = remember {
         LifecycleCameraController(context).apply {
             setEnabledUseCases(
