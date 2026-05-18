@@ -64,8 +64,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.veeso.biangbiangui.protocols.ProcessedText
 import dev.veeso.biangbiangui.services.camera.LiveOcrAnalyzer
 import dev.veeso.biangbiangui.services.camera.OcrBox
-import dev.veeso.biangbiangui.services.camera.OcrService
+import dev.veeso.biangbiangui.services.camera.StillImageOcr
 import dev.veeso.biangbiangui.services.camera.availablePresets
+import dev.veeso.biangbiangui.services.camera.resolveOcrService
 import dev.veeso.biangbiangui.services.camera.capturePhoto
 import dev.veeso.biangbiangui.services.camera.clampZoom
 import dev.veeso.biangbiangui.ui.AppDesign
@@ -82,7 +83,7 @@ import kotlin.math.abs
  *
  * Generalisations vs. the reference:
  * - The hard-coded Chinese recognizer/`TextProcessor` is replaced by the 5.2
- *   `LiveOcrAnalyzer`/`OcrService` built from `ctx.activeProfile.ocrRecognizer`
+ *   `LiveOcrAnalyzer`/`StillImageOcr` built from `ctx.activeProfile.ocrRecognizer`
  *   and `ctx.engine`. The overlay consumes the upright dims the analyzer emits
  *   (correct `OcrRotation` basis — no drift).
  * - All strings from `config.strings`; `showPinyin` -> `showTransliteration`;
@@ -128,6 +129,9 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
     val scope = rememberCoroutineScope()
     val recognizerKind = ctx.activeProfile.ocrRecognizer
     val engine = ctx.engine
+    val ocrService = remember(ctx.activeProfile) {
+        resolveOcrService(ctx.activeProfile)
+    }
 
     // Plugin CAMERA seam: dispatch onProcessedText for each box and surface the
     // first plugin inline view as a sheet. Inert when there are no plugins.
@@ -167,9 +171,10 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val analyzer = remember(recognizerKind, engine) {
+    val analyzer = remember(ocrService, recognizerKind, engine) {
         LiveOcrAnalyzer(
-            recognizerKind = recognizerKind,
+            service = ocrService,
+            recognizer = recognizerKind,
             engine = engine,
             onResult = { newBoxes, w, h ->
                 liveOcrBoxes.clear()
@@ -179,6 +184,12 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
                 dispatchPluginHooks(newBoxes)
             },
         )
+    }
+
+    // Cancel the analyzer's coroutine scope when it is replaced (profile
+    // change) or this screen leaves composition, so it never outlives its use.
+    DisposableEffect(analyzer) {
+        onDispose { analyzer.close() }
     }
 
     val cameraController = remember {
@@ -223,10 +234,11 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
         }
     }
 
-    LaunchedEffect(capturedImage, recognizerKind, engine) {
+    LaunchedEffect(capturedImage, ocrService, recognizerKind, engine) {
         ocrBoxes.clear()
         capturedImage?.let { bitmap ->
-            val boxes = OcrService(recognizerKind, engine).recognize(bitmap)
+            val boxes = StillImageOcr(ocrService, recognizerKind, engine)
+                .recognize(bitmap)
             ocrBoxes.addAll(boxes)
             dispatchPluginHooks(boxes)
         }

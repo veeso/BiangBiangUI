@@ -5,23 +5,28 @@
 
 #if canImport(UIKit)
     @preconcurrency import AVFoundation
+    import CoreImage
     import Foundation
     import Observation
     import UIKit
-    import Vision
 
-    /// Text box identified by the Vision OCR pass.
+    /// Text box identified by the OCR pass.
     ///
-    /// `boundingBox` is in normalised coordinates (0–1) with Vision's
-    /// bottom-left origin.
+    /// `pixelRect` is in source-image pixel coordinates with a top-left
+    /// origin (the `OCRService` contract).
     public struct RecognizedTextBox: Identifiable, Equatable, Sendable {
         public let id = UUID()
         public let text: String
-        /// Normalised bounding box (0–1). Vision origin is bottom-left.
-        public let boundingBox: CGRect
+        /// Bounding box in source-image pixel space (top-left origin).
+        public let pixelRect: CGRect
+
+        public init(text: String, pixelRect: CGRect) {
+            self.text = text
+            self.pixelRect = pixelRect
+        }
     }
 
-    /// AVFoundation + Vision camera model, generalised for any `LanguageProfile`.
+    /// AVFoundation + OCR camera model, generalised for any `LanguageProfile`.
     ///
     /// Ported from `CameraModel` in BiangBiang Hanzi. Generalisations:
     /// - Initialised with a `LanguageProfile` and an injected `TextProcessingEngine`.
@@ -35,7 +40,7 @@
     {
         // MARK: - Public observable state
 
-        /// Recognised text boxes from the most recent Vision pass.
+        /// Recognised text boxes from the most recent OCR pass.
         public var recognizedTexts: [RecognizedTextBox] = []
         /// Maps each box's `id` to the engine-processed transliteration string.
         /// `nil`-return from the engine means no script was found; that box is absent.
@@ -50,6 +55,10 @@
         public var showCopiedToast: Bool = false
         /// Transient toast: "saved to history".
         public var showSavedToast: Bool = false
+        /// Pixel size of the image the most recent `recognizedTexts` were
+        /// detected in. The overlay maps `pixelRect` (image-pixel, top-left)
+        /// onto the view using this size. `.zero` until the first pass.
+        public var lastImagePixelSize: CGSize = .zero
 
         // MARK: - Zoom
 
@@ -73,9 +82,12 @@
         /// `TextProcessingEngine` is `@unchecked Sendable`, so the nonisolated
         /// camera-queue delegate can hand spans to it without an actor hop.
         @ObservationIgnored private nonisolated let engine: TextProcessingEngine
-        /// Vision recognition languages, resolved once from `profile` at init so
-        /// the nonisolated frame delegate never touches main-actor state.
-        @ObservationIgnored private nonisolated let recognitionLanguages: [String]
+        /// OCR backend, resolved once from `profile` at init. `any OCRService`
+        /// is `Sendable`, so the nonisolated frame delegate can capture it.
+        @ObservationIgnored private nonisolated let service: any OCRService
+        /// Script hint passed to the service, resolved once at init so the
+        /// nonisolated frame delegate never touches main-actor state.
+        @ObservationIgnored private nonisolated let recognizer: OCRRecognizer
 
         @ObservationIgnored private var device: AVCaptureDevice?
         @ObservationIgnored private var zoomSwitchOverFactor: CGFloat = 1.0
@@ -86,7 +98,6 @@
         @ObservationIgnored private let queue = DispatchQueue(
             label: "camera.frame.processing"
         )
-        @ObservationIgnored private var textRequest: VNRecognizeTextRequest!
         @ObservationIgnored public var previewLayer: AVCaptureVideoPreviewLayer?
         /// Throttle timestamp. Confined to the serial `queue` (the only thing
         /// that reads/writes it is the nonisolated `captureOutput`).
@@ -102,7 +113,14 @@
         public init(profile: LanguageProfile, engine: TextProcessingEngine) {
             self.profile = profile
             self.engine = engine
-            recognitionLanguages = Self.recognitionLanguages(for: profile.ocrRecognizer)
+            service = Self.resolveService(profile)
+            recognizer = profile.ocrRecognizer
+        }
+
+        /// Resolves the OCR backend for `profile`, falling back to the
+        /// built-in `DefaultOCRService` when the profile supplies none.
+        nonisolated static func resolveService(_ profile: LanguageProfile) -> any OCRService {
+            profile.ocrService ?? DefaultOCRService()
         }
 
         // MARK: - Photo capture
@@ -143,19 +161,15 @@
             guard now.timeIntervalSince(lastProcessingTime) > 1 else { return }
             lastProcessingTime = now
 
-            guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-
-            let request = makeTextRecognitionRequest()
-            let handler = VNImageRequestHandler(
-                cvPixelBuffer: pixelBuffer,
-                orientation: .up,
-                options: [:]
-            )
-
-            do {
-                try handler.perform([request])
-            } catch {
-                print("⚠️ Vision error:", error)
+            guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer),
+                  let cgImage = Self.cgImage(from: pixelBuffer) else { return }
+            let service = self.service
+            let recognizer = self.recognizer
+            let engine = self.engine
+            let size = CGSize(width: cgImage.width, height: cgImage.height)
+            Task { @MainActor in
+                let boxes = await service.recognize(cgImage, recognizer: recognizer)
+                self.applyRecognized(boxes, engine: engine, imagePixelSize: size)
             }
         }
 
@@ -372,92 +386,70 @@
             }
         }
 
-        // MARK: - Private: Vision OCR
+        // MARK: - Private: OCR plumbing
 
-        /// Builds a `VNRecognizeTextRequest` whose completion handler posts
-        /// results back to `@MainActor`.
-        private nonisolated func makeTextRecognitionRequest() -> VNRecognizeTextRequest {
-            let request = VNRecognizeTextRequest { [weak self] req, _ in
-                guard let self,
-                      let results = req.results as? [VNRecognizedTextObservation]
-                else { return }
+        /// Shared `CIContext` reused across all live-frame conversions.
+        /// `CIContext` is thread-safe, so a single static instance is correct
+        /// and avoids the per-frame allocation cost of `CIContext()`.
+        nonisolated static let ciContext = CIContext()
 
-                let boxes: [RecognizedTextBox] = results.compactMap {
-                    guard let top = $0.topCandidates(1).first else { return nil }
-                    return RecognizedTextBox(text: top.string, boundingBox: $0.boundingBox)
-                }
-
-                // Capture the engine value before crossing the actor boundary.
-                let engine = self.engine
-
-                Task { @MainActor in
-                    self.recognizedTexts = boxes
-                    self.transliterationMap.removeAll(keepingCapacity: true)
-                    for box in boxes {
-                        if let processed = engine.process(box.text) {
-                            self.transliterationMap[box.id] = processed
-                        }
-                    }
-                }
-            }
-            request.recognitionLanguages = recognitionLanguages
-            request.recognitionLevel = .accurate
-            return request
+        /// Builds a still `CGImage` from a live camera frame. The resulting
+        /// image is in the sensor's native pixel space, matching the
+        /// coordinate space `OCRService` returns boxes in.
+        nonisolated static func cgImage(from pixelBuffer: CVPixelBuffer) -> CGImage? {
+            let ci = CIImage(cvPixelBuffer: pixelBuffer)
+            return Self.ciContext.createCGImage(ci, from: ci.extent)
         }
 
-        /// Maps an `OCRRecognizer` to the Vision language identifiers for the
-        /// active Vision revision. Arabic falls back to `["ar-SA","ar"]` if no
-        /// `ar*` tag is supported (port of Harakat Lens's `preferredArabicLanguages()`).
-        private static func recognitionLanguages(for recognizer: OCRRecognizer) -> [String] {
-            switch recognizer {
-            case .chinese:
-                return ["zh-Hans", "zh-Hant"]
-            case .latin:
-                return ["en-US"]
-            case .arabic:
-                return preferredArabicLanguages()
-            case .japanese:
-                return ["ja"]
-            case .korean:
-                return ["ko"]
+        /// Returns an upright `CGImage` for a still `UIImage`, baking
+        /// `imageOrientation` into the pixels.
+        ///
+        /// `OCRService` deliberately takes only a `CGImage` (no orientation),
+        /// mirroring the Android side which passes an upright `Bitmap`. The
+        /// pipeline owns frame normalisation: the live path already yields an
+        /// upright sensor image via `cgImage(from:)`; this does the same for
+        /// the captured/gallery still path so detected boxes and the
+        /// pixel→view aspect-fit overlay are correct.
+        nonisolated static func uprightCGImage(from image: UIImage) -> CGImage? {
+            if image.imageOrientation == .up { return image.cgImage }
+            let format = UIGraphicsImageRendererFormat.default()
+            format.scale = image.scale
+            let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+            let normalized = renderer.image { _ in
+                image.draw(in: CGRect(origin: .zero, size: image.size))
             }
+            return normalized.cgImage
         }
 
-        /// Filters the languages supported by Vision Revision 3 for Arabic tags.
-        /// Ported verbatim from Harakat Lens `CameraModel.preferredArabicLanguages()`.
-        private static func preferredArabicLanguages() -> [String] {
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = .accurate
-            request.revision = VNRecognizeTextRequestRevision3
-            let supported = (try? request.supportedRecognitionLanguages()) ?? []
-            let arabic = supported.filter { $0.hasPrefix("ar") }
-            return arabic.isEmpty ? ["ar-SA", "ar"] : arabic
+        /// Applies `OCRService` results: publishes the boxes (pixel-space,
+        /// top-left) and rebuilds the transliteration map via the engine.
+        @MainActor
+        func applyRecognized(
+            _ boxes: [OCRTextBox],
+            engine: TextProcessingEngine,
+            imagePixelSize: CGSize
+        ) {
+            lastImagePixelSize = imagePixelSize
+            recognizedTexts = boxes.map {
+                RecognizedTextBox(text: $0.text, pixelRect: $0.rect)
+            }
+            transliterationMap.removeAll(keepingCapacity: true)
+            for box in recognizedTexts {
+                if let processed = engine.process(box.text) {
+                    transliterationMap[box.id] = processed
+                }
+            }
         }
 
         private func recognizeText(from image: UIImage) {
-            guard let cgImage = image.cgImage else { return }
-            let request = makeTextRecognitionRequest()
-            let handler = VNImageRequestHandler(
-                cgImage: cgImage,
-                orientation: cgOrientation(from: image.imageOrientation),
-                options: [:]
-            )
-            try? handler.perform([request])
-        }
-
-        private func cgOrientation(
-            from uiOrientation: UIImage.Orientation
-        ) -> CGImagePropertyOrientation {
-            switch uiOrientation {
-            case .up: .up
-            case .down: .down
-            case .left: .left
-            case .right: .right
-            case .upMirrored: .upMirrored
-            case .downMirrored: .downMirrored
-            case .leftMirrored: .leftMirrored
-            case .rightMirrored: .rightMirrored
-            @unknown default: .up
+            guard let cgImage = Self.uprightCGImage(from: image) else { return }
+            let service = self.service
+            let recognizer = self.recognizer
+            let engine = self.engine
+            let size = CGSize(width: cgImage.width, height: cgImage.height)
+            Task { @MainActor in
+                let boxes = await service.recognize(cgImage, recognizer: recognizer)
+                self.applyRecognized(boxes, engine: engine, imagePixelSize: size)
             }
         }
     }

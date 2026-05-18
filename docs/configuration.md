@@ -144,20 +144,60 @@ All fields default to `true`.
 One entry per supported script. All fields required; `variants` may be
 empty but the variant picker only renders when it has entries.
 
-| Field           | Type                    | Purpose                                      |
-| --------------- | ----------------------- | -------------------------------------------- |
-| `id`            | `String`                | Stable identifier (e.g. `chinese`, `arabic`) |
-| `displayName`   | `String`                | User-facing name                             |
-| `scriptRanges`  | `[ClosedRange<UInt32>]` | Unicode scalar ranges defining the script    |
-| `ocrRecognizer` | `OCRRecognizer`         | OCR engine used for this script              |
-| `variants`      | `[LanguageVariant]`     | Transliteration variants                     |
+| Field           | Type                    | Purpose                                        |
+| --------------- | ----------------------- | ---------------------------------------------- |
+| `id`            | `String`                | Stable identifier (e.g. `chinese`, `arabic`)   |
+| `displayName`   | `String`                | User-facing name                               |
+| `scriptRanges`  | `[ClosedRange<UInt32>]` | Unicode scalar ranges defining the script      |
+| `ocrRecognizer` | `OCRRecognizer`         | Script hint passed to the OCR backend          |
+| `ocrService`    | `(any OCRService)?`     | Optional OCR backend; `nil` = platform default |
+| `variants`      | `[LanguageVariant]`     | Transliteration variants                       |
 
 `TextProcessingEngine` uses `scriptRanges` to isolate script spans;
 non-script characters (Latin, digits, punctuation, emoji) are preserved in
 place.
 
 `OCRRecognizer` (iOS) / `OcrRecognizer` (Android) cases: `chinese`,
-`latin`, `arabic`, `japanese`, `korean`.
+`latin`, `arabic`, `japanese`, `korean`. Which scripts each case actually
+recognizes per platform is documented in
+[OCR language support](./ocr-languages.md).
+
+### ocrService — custom OCR backend
+
+When `ocrService` is `nil` (the default), the library uses its built-in
+backend: Apple Vision on iOS, Google ML Kit on Android. Set `ocrService`
+to supply your own `OCRService` / `OcrService` implementation for scripts
+the platform default does not support. The service receives the
+platform-normalised still image and the profile's `ocrRecognizer` as a
+script hint, and returns raw bounding boxes in image-pixel space. The
+pipeline continues to own rotation, throttle, debounce, spacing, and
+transliteration.
+
+#### iOS
+
+```swift
+LanguageProfile(
+    id: "arabic",
+    displayName: "Arabic",
+    scriptRanges: [0x0600 ... 0x06FF],
+    ocrRecognizer: .arabic,
+    variants: [arabicVariant],
+    ocrService: nil // Vision recognises Arabic natively; no override needed
+)
+```
+
+#### Android
+
+```kotlin
+LanguageProfile(
+    id = "arabic",
+    displayName = "Arabic",
+    scriptRanges = listOf(0x0600u..0x06FFu),
+    ocrRecognizer = OcrRecognizer.ARABIC,
+    variants = listOf(arabicVariant),
+    ocrService = TesseractOcrService(context), // ML Kit has no Arabic model
+)
+```
 
 ## LanguageVariant
 
