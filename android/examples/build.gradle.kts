@@ -39,7 +39,6 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.kotlinx.coroutines.play.services)
     // pinyin4j: example-only Mandarin romaniser. Mirrors iOS where
     // CFStringTransform lives in the example, never the library.
     implementation(libs.pinyin4j)
