@@ -132,6 +132,7 @@
                         }
                 }
             }
+            .tint(context.config.branding.accentColor)
             .environment(context)
             .task {
                 guard context.config.features.ratePrompt else { return }
