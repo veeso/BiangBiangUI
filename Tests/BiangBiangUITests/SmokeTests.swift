@@ -1,5 +1,5 @@
-import Testing
 @testable import BiangBiangUI
+import Testing
 
 @Test func libraryVersionIsSemver() {
     let parts = BiangBiangUI.version.split(separator: ".")

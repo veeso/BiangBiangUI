@@ -13,7 +13,8 @@ public struct LanguageProfile: Sendable {
     public let variants: [LanguageVariant]
 
     public init(id: String, displayName: String, scriptRanges: [ClosedRange<UInt32>],
-                ocrRecognizer: OCRRecognizer, variants: [LanguageVariant]) {
+                ocrRecognizer: OCRRecognizer, variants: [LanguageVariant])
+    {
         self.id = id; self.displayName = displayName
         self.scriptRanges = scriptRanges
         self.ocrRecognizer = ocrRecognizer

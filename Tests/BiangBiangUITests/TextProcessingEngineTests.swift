@@ -1,6 +1,5 @@
-import Testing
-
 @testable import BiangBiangUI
+import Testing
 
 // MARK: - Fake transliterators
 
@@ -22,10 +21,10 @@ private struct FakeY: Transliterator {
 // MARK: - Range constants
 
 /// CJK Unified Ideographs: U+4E00–U+9FFF
-private let cjk: [ClosedRange<UInt32>] = [0x4E00...0x9FFF]
+private let cjk: [ClosedRange<UInt32>] = [0x4E00 ... 0x9FFF]
 
 /// CJK + CJK Extension A (U+3400–U+4DBF) for multi-range tests.
-private let cjkPlusExtA: [ClosedRange<UInt32>] = [0x3400...0x4DBF, 0x4E00...0x9FFF]
+private let cjkPlusExtA: [ClosedRange<UInt32>] = [0x3400 ... 0x4DBF, 0x4E00 ... 0x9FFF]
 
 // MARK: - Tests
 
@@ -124,7 +123,7 @@ private let cjkPlusExtA: [ClosedRange<UInt32>] = [0x3400...0x4DBF, 0x4E00...0x9F
     let engineMulti = TextProcessingEngine(scriptRanges: cjkPlusExtA, transliterator: FakeLatin())
 
     // 㐀 is U+3400, outside cjk range
-    let textWithExtA = "\u{3400}"  // 㐀
+    let textWithExtA = "\u{3400}" // 㐀
     #expect(engineSingle.containsScript(textWithExtA) == false)
     #expect(engineMulti.containsScript(textWithExtA) == true)
 }

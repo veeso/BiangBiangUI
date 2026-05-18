@@ -6,7 +6,6 @@ import Foundation
 /// The regex is immutable after initialisation; `@unchecked Sendable` is used only because
 /// `NSRegularExpression` does not conform to `Sendable`, but is thread-safe when read-only.
 public final class TextProcessingEngine: @unchecked Sendable {
-
     // MARK: - Stored properties
 
     private let regex: NSRegularExpression

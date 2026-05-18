@@ -23,8 +23,16 @@ public protocol FeaturePlugin {
 }
 
 public extension FeaturePlugin {
-    var tabs: [PluginTab] { [] }
-    func onProcessedText(_ result: ProcessedText) {}
-    func inlineResultView(for result: ProcessedText) -> AnyView? { nil }
-    var audioProvider: (any AudioProvider)? { nil }
+    var tabs: [PluginTab] {
+        []
+    }
+
+    func onProcessedText(_: ProcessedText) {}
+    func inlineResultView(for _: ProcessedText) -> AnyView? {
+        nil
+    }
+
+    var audioProvider: (any AudioProvider)? {
+        nil
+    }
 }

@@ -30,7 +30,6 @@ private struct IdentityTransliterator: Transliterator {
 @MainActor
 @Observable
 public final class BiangBiangContext {
-
     // MARK: - Public stored properties
 
     public let config: BiangBiangConfig
@@ -72,7 +71,7 @@ public final class BiangBiangContext {
     /// script always have exactly one profile; this is its canonical accessor.
     public var activeProfile: LanguageProfile {
         precondition(!config.languages.isEmpty,
-            "BiangBiangConfig must declare at least one LanguageProfile")
+                     "BiangBiangConfig must declare at least one LanguageProfile")
         return config.languages[0]
     }
 

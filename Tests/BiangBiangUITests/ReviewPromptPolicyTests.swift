@@ -1,5 +1,5 @@
-import Testing
 @testable import BiangBiangUI
+import Testing
 
 struct ReviewPromptPolicyTests {
     @Test func incrementCapsAtFive() {

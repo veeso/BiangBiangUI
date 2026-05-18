@@ -8,7 +8,8 @@ public struct LanguageVariant: Sendable {
     public let translatable: Bool
 
     public init(id: String, displayName: String, transliterator: any Transliterator,
-                ttsLanguageCode: String?, translatable: Bool) {
+                ttsLanguageCode: String?, translatable: Bool)
+    {
         self.id = id; self.displayName = displayName
         self.transliterator = transliterator
         self.ttsLanguageCode = ttsLanguageCode

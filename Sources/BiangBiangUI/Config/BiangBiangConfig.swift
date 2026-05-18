@@ -1,5 +1,5 @@
-// `plugins` are @MainActor `FeaturePlugin`s (they vend SwiftUI views), so this
-// config is @MainActor-isolated rather than Sendable. Decided in Task 1.3.
+/// `plugins` are @MainActor `FeaturePlugin`s (they vend SwiftUI views), so this
+/// config is @MainActor-isolated rather than Sendable. Decided in Task 1.3.
 @MainActor
 public struct BiangBiangConfig {
     public let branding: Branding
@@ -11,7 +11,8 @@ public struct BiangBiangConfig {
 
     public init(branding: Branding, languages: [LanguageProfile],
                 extraSettings: [SettingDescriptor], plugins: [any FeaturePlugin],
-                features: FeatureFlags, strings: [String: String]?) {
+                features: FeatureFlags, strings: [String: String]?)
+    {
         self.branding = branding
         self.languages = languages
         self.extraSettings = extraSettings

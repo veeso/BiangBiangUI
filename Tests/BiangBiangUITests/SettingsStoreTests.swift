@@ -1,6 +1,6 @@
+@testable import BiangBiangUI
 import Foundation
 import Testing
-@testable import BiangBiangUI
 
 @MainActor
 struct SettingsStoreHistoryTests {
