@@ -42,6 +42,9 @@ dependencies {
     // pinyin4j: example-only Mandarin romaniser. Mirrors iOS where
     // CFStringTransform lives in the example, never the library.
     implementation(libs.pinyin4j)
+    // icu4j: example-only Arabic romaniser (Any-Latin). Mirrors iOS where
+    // CFStringTransform lives in the example, never the library.
+    implementation(libs.icu4j)
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
     testImplementation(libs.robolectric)

@@ -24,6 +24,7 @@ translate = "17.0.3"
 robolectric = "4.16"
 kotlinxCoroutinesTest = "1.11.0"
 androidxDatastoreCore = "1.2.1"
+icu4j = "75.1"
 
 [libraries]
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "cameraCore" }
@@ -63,6 +64,7 @@ translate = { module = "com.google.mlkit:translate", version.ref = "translate" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
 androidx-datastore-core = { module = "androidx.datastore:datastore-preferences-core", version.ref = "androidxDatastoreCore" }
+icu4j = { module = "com.ibm.icu:icu4j", version.ref = "icu4j" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -1,6 +1,6 @@
 package dev.veeso.biangbiangui.examples.arabic
 
-import android.icu.text.Transliterator as IcuTransliterator
+import com.ibm.icu.text.Transliterator as IcuTransliterator
 import dev.veeso.biangbiangui.protocols.Transliterator
 
 /**
@@ -11,10 +11,11 @@ import dev.veeso.biangbiangui.protocols.Transliterator
  * romanise.
  *
  * The iOS port used `CFStringTransform(kCFStringTransformToLatin)`. On
- * Android the equivalent transform is `android.icu.text.Transliterator`
- * `"Any-Latin"`, bundled in the platform (`android.icu`, API 24+) so no new
- * dependency is added. ICU lives only in this example, never the library —
- * exactly mirroring iOS.
+ * Android the equivalent transform is the `com.ibm.icu:icu4j` library's
+ * `com.ibm.icu.text.Transliterator` `"Any-Latin"`. icu4j is a plain JVM
+ * library with no Android API gate, so this keeps `minSdk = 26`. The
+ * dependency lives only in this example, never the library — exactly
+ * mirroring iOS.
  *
  * The library's [dev.veeso.biangbiangui.services.TextProcessingEngine] owns
  * span detection and spacing.
