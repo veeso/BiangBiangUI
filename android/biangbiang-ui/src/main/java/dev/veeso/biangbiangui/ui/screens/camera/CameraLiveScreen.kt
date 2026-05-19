@@ -288,6 +288,7 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
                         },
                     isLive = true,
                     showTransliteration = showTransliteration,
+                    minScaleFactor = ctx.config.minimumOcrScaleFactor,
                     onTextCopied = { showCopyToast = true },
                     onSaveBox = saveBox,
                 )
@@ -339,6 +340,7 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
                     modifier = Modifier.fillMaxSize(),
                     isLive = false,
                     showTransliteration = showTransliteration,
+                    minScaleFactor = ctx.config.minimumOcrScaleFactor,
                     onTextCopied = { showCopyToast = true },
                     onSaveBox = saveBox,
                 )

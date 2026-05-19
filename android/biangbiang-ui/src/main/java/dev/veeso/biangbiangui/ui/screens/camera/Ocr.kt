@@ -57,6 +57,7 @@ fun OcrOverlay(
     modifier: Modifier = Modifier,
     isLive: Boolean,
     showTransliteration: Boolean,
+    minScaleFactor: Float = 0.6f,
     onTextCopied: (() -> Unit)? = null,
     onSaveBox: ((OcrBox) -> Unit)? = null,
 ) {
@@ -139,7 +140,7 @@ fun OcrOverlay(
                 } else {
                     1f
                 }
-                val scaleFactor = scaleRatio.coerceIn(0.6f, 1.0f)
+                val scaleFactor = scaleRatio.coerceIn(minScaleFactor, 1.0f)
                 // Font tracks the on-screen box height with a 12sp floor
                 // (matches iOS RecognizedTextOverlay.minFontSize).
                 val dynamicFontSize =
