@@ -173,6 +173,10 @@ class SettingsStore(
     suspend fun value(key: String): String? =
         dataStore.data.first()[descriptorKey(key)]
 
+    /** Reactive descriptor value; emits on every persisted change. */
+    fun valueFlow(key: String): kotlinx.coroutines.flow.Flow<String?> =
+        dataStore.data.map { it[descriptorKey(key)] }
+
     suspend fun setValue(key: String, value: String) {
         dataStore.edit { it[descriptorKey(key)] = value }
     }

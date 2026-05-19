@@ -11,7 +11,7 @@ screen and owns History, the rate-app prompt, TTS, and the OCR/Vision pipeline.
 ### iOS (Swift Package Manager)
 
 ```swift
-.package(url: "https://github.com/veeso/BiangBiangUI", from: "0.3.1")
+.package(url: "https://github.com/veeso/BiangBiangUI", from: "0.3.2")
 ```
 
 ```swift
@@ -28,7 +28,7 @@ maven(url = "https://jitpack.io")
 ```
 
 ```kotlin
-implementation("com.github.veeso.BiangBiangUI:biangbiang-ui:0.3.1")
+implementation("com.github.veeso.BiangBiangUI:biangbiang-ui:0.3.2")
 ```
 
 ```kotlin

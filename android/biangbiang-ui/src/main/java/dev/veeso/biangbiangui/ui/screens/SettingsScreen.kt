@@ -30,7 +30,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -271,9 +270,9 @@ private fun DescriptorControl(
     descriptor: SettingDescriptor,
 ) {
     val scope = rememberCoroutineScope()
-    val current by produceState(initialValue = descriptor.defaultValue, descriptor.key) {
-        value = ctx.settings.value(descriptor.key) ?: descriptor.defaultValue
-    }
+    val current by ctx.settings.valueFlow(descriptor.key)
+        .collectAsStateWithLifecycle(initialValue = descriptor.defaultValue)
+    val value = current ?: descriptor.defaultValue
     when (val kind = descriptor.kind) {
         is SettingDescriptor.Kind.Toggle -> {
             Row(
@@ -283,7 +282,7 @@ private fun DescriptorControl(
             ) {
                 Text(descriptor.label)
                 Switch(
-                    checked = current == "true",
+                    checked = value == "true",
                     onCheckedChange = { checked ->
                         scope.launch {
                             ctx.settings.setValue(
@@ -300,7 +299,7 @@ private fun DescriptorControl(
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 kind.options.forEachIndexed { index, option ->
                     SegmentedButton(
-                        selected = current == option,
+                        selected = value == option,
                         onClick = {
                             scope.launch { ctx.settings.setValue(descriptor.key, option) }
                         },
