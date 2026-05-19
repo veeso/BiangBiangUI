@@ -71,6 +71,7 @@ import dev.veeso.biangbiangui.services.camera.capturePhoto
 import dev.veeso.biangbiangui.services.camera.clampZoom
 import dev.veeso.biangbiangui.ui.AppDesign
 import dev.veeso.biangbiangui.ui.BiangBiangContext
+import dev.veeso.biangbiangui.ui.accentColor
 import dev.veeso.biangbiangui.ui.components.CopyToast
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -304,11 +305,13 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
                         ZoomPresetBar(
                             presets = presets,
                             zoomRatio = zoomRatio,
+                            accent = ctx.config.branding.accentColor,
                             onSelect = ::applyZoom,
                         )
                     }
                     CaptureControlBar(
                         showTransliteration = showTransliteration,
+                        accent = ctx.config.branding.accentColor,
                         buttonLogoAssetName = ctx.config.branding.buttonLogoAssetName,
                         onToggle = { showTransliteration = !showTransliteration },
                         onCapture = {
@@ -406,6 +409,7 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
 private fun ZoomPresetBar(
     presets: List<Float>,
     zoomRatio: Float,
+    accent: Color,
     onSelect: (Float) -> Unit,
 ) {
     Row(
@@ -422,7 +426,7 @@ private fun ZoomPresetBar(
                     .padding(horizontal = 4.dp),
                 onClick = { onSelect(preset) },
                 colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = if (isActive) AppDesign.accentRed else Color.Unspecified,
+                    containerColor = if (isActive) accent else Color.Unspecified,
                     contentColor = if (isActive) Color.White else Color.Unspecified,
                 ),
             ) {
@@ -439,6 +443,7 @@ private fun ZoomPresetBar(
 @Composable
 private fun CaptureControlBar(
     showTransliteration: Boolean,
+    accent: Color,
     buttonLogoAssetName: String,
     onToggle: () -> Unit,
     onCapture: () -> Unit,
@@ -464,7 +469,7 @@ private fun CaptureControlBar(
             onClick = onToggle,
             colors = IconButtonDefaults.filledTonalIconButtonColors(
                 containerColor =
-                    if (showTransliteration) AppDesign.accentRed else Color.Unspecified,
+                    if (showTransliteration) accent else Color.Unspecified,
                 contentColor =
                     if (showTransliteration) Color.White else Color.Unspecified,
             ),

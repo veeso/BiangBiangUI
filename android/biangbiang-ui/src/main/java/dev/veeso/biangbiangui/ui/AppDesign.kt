@@ -1,6 +1,5 @@
 package dev.veeso.biangbiangui.ui
 
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
@@ -45,7 +44,4 @@ object AppDesign {
 
     /** Debounce window for live text input processing. */
     const val INPUT_DEBOUNCE_MS = 800L
-
-    /** Brand red used for active toggles. */
-    val accentRed = Color(0xFFDE2910)
 }
