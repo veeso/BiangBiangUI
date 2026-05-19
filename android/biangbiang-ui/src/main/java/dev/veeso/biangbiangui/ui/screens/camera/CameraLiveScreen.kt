@@ -42,7 +42,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -102,8 +101,13 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
     var frameHeight by remember { mutableIntStateOf(1) }
     var showTransliteration by remember { mutableStateOf(true) }
     var capturedImage by remember { mutableStateOf<Bitmap?>(null) }
-    val ocrBoxes = remember { mutableStateListOf<OcrBox>() }
-    val liveOcrBoxes = remember { mutableStateListOf<OcrBox>() }
+    // Immutable lists swapped atomically. A SnapshotStateList here let the
+    // background OCR callback restructure the list (clear()+addAll()) while
+    // OcrOverlay's Canvas iterated it during the draw phase, throwing
+    // ConcurrentModificationException. A single reference assignment cannot
+    // tear, and there is no StateListIterator to invalidate.
+    var ocrBoxes by remember { mutableStateOf<List<OcrBox>>(emptyList()) }
+    var liveOcrBoxes by remember { mutableStateOf<List<OcrBox>>(emptyList()) }
 
     var zoomRatio by remember { mutableFloatStateOf(1f) }
     var maxZoom by remember { mutableFloatStateOf(1f) }
@@ -178,8 +182,7 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
             recognizer = recognizerKind,
             engine = engine,
             onResult = { newBoxes, w, h ->
-                liveOcrBoxes.clear()
-                liveOcrBoxes.addAll(newBoxes)
+                liveOcrBoxes = newBoxes
                 frameWidth = w
                 frameHeight = h
                 dispatchPluginHooks(newBoxes)
@@ -236,11 +239,11 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
     }
 
     LaunchedEffect(capturedImage, ocrService, recognizerKind, engine) {
-        ocrBoxes.clear()
+        ocrBoxes = emptyList()
         capturedImage?.let { bitmap ->
             val boxes = StillImageOcr(ocrService, recognizerKind, engine)
                 .recognize(bitmap)
-            ocrBoxes.addAll(boxes)
+            ocrBoxes = boxes
             dispatchPluginHooks(boxes)
         }
     }

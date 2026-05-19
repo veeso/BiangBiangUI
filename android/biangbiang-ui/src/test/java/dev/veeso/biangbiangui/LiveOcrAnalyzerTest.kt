@@ -1,10 +1,19 @@
 package dev.veeso.biangbiangui
 
+import dev.veeso.biangbiangui.config.OcrRecognizer
+import dev.veeso.biangbiangui.services.TextProcessingEngine
+import dev.veeso.biangbiangui.services.camera.LiveOcrAnalyzer
+import dev.veeso.biangbiangui.services.camera.OcrBox
 import dev.veeso.biangbiangui.services.camera.OcrRotation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.Executors
 
 /**
  * Asserts the single correct live-OCR rotation/coordinate math (the fix, by
@@ -68,6 +77,49 @@ class LiveOcrAnalyzerTest {
         assertEquals(50f, mapped[1], 0.0001f)
         assertEquals(200f, mapped[2], 0.0001f)
         assertEquals(40f, mapped[3], 0.0001f)
+    }
+
+    /**
+     * Regression: the live-OCR result MUST be delivered on the injected
+     * result dispatcher (the UI marshals it to the main thread), not on the
+     * background recognition scope. Delivering off-main-thread let
+     * `onResult` mutate the Compose `SnapshotStateList` while the draw phase
+     * iterated it in `OcrOverlay`, throwing `ConcurrentModificationException`.
+     */
+    @Test
+    fun resultIsDeliveredOnTheInjectedDispatcher() = runBlocking {
+        val deliveryExecutor =
+            Executors.newSingleThreadExecutor { r -> Thread(r, "ocr-delivery") }
+        try {
+            val deliveryDispatcher = deliveryExecutor.asCoroutineDispatcher()
+            var deliveredOnThread: String? = null
+            val analyzer = LiveOcrAnalyzer(
+                service = { _, _ -> emptyList() },
+                recognizer = OcrRecognizer.CHINESE,
+                engine = TextProcessingEngine(
+                    listOf(0x4E00u..0x9FFFu),
+                    { it },
+                ),
+                resultDispatcher = deliveryDispatcher,
+                onResult = { _, _, _ ->
+                    deliveredOnThread = Thread.currentThread().name
+                },
+            )
+            // Invoke delivery from a background thread, as analyze() does.
+            withContext(Dispatchers.Default) {
+                analyzer.deliverResult(
+                    listOf(OcrBox("你好", "ni hao", 0, 0, 10, 10)),
+                    100,
+                    200,
+                )
+            }
+            assertTrue(
+                "delivered on $deliveredOnThread, expected the ocr-delivery thread",
+                deliveredOnThread?.startsWith("ocr-delivery") == true,
+            )
+        } finally {
+            deliveryExecutor.shutdown()
+        }
     }
 
     @Test

@@ -15,10 +15,12 @@ import dev.veeso.biangbiangui.config.LanguageProfile
 import dev.veeso.biangbiangui.config.OcrRecognizer
 import dev.veeso.biangbiangui.protocols.OcrService
 import dev.veeso.biangbiangui.services.TextProcessingEngine
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** A recognised text element already in upright/display coordinates. */
@@ -112,8 +114,20 @@ class LiveOcrAnalyzer(
     private val recognizer: OcrRecognizer,
     private val engine: TextProcessingEngine,
     private val throttleMs: Long = 1000L,
+    private val resultDispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val onResult: (List<OcrBox>, Int, Int) -> Unit,
 ) : ImageAnalysis.Analyzer, AutoCloseable {
+
+    /**
+     * Marshals [onResult] onto [resultDispatcher] (the main thread by
+     * default). Recognition runs on [scope] (`Dispatchers.Default`); the
+     * callback mutates Compose state, so it MUST NOT fire on that background
+     * thread — doing so let it restructure the overlay's snapshot list while
+     * the draw phase iterated it (`ConcurrentModificationException`).
+     */
+    internal suspend fun deliverResult(boxes: List<OcrBox>, width: Int, height: Int) {
+        withContext(resultDispatcher) { onResult(boxes, width, height) }
+    }
 
     private var lastProcessedTime = 0L
     private val scope = CoroutineScope(Dispatchers.Default)
@@ -168,7 +182,7 @@ class LiveOcrAnalyzer(
                             upright,
                         )
                     }
-                onResult(boxes, upright.width, upright.height)
+                deliverResult(boxes, upright.width, upright.height)
             } finally {
                 busy.set(false)
             }
