@@ -88,6 +88,7 @@ class ConfigSeamTest {
         )
         assertEquals("Demo", cfg.branding.appName)
         assertTrue(cfg.features.history && cfg.features.ratePrompt && cfg.features.tts)
+        assertEquals(0.6f, cfg.minimumOcrScaleFactor, 0.0001f)
         assertEquals("Clear All", cfg.strings.clearAll)
     }
 

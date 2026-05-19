@@ -73,6 +73,7 @@ struct NoopPlugin: FeaturePlugin {
     )
     #expect(cfg.branding.appName == "Demo")
     #expect(cfg.features.history && cfg.features.ratePrompt && cfg.features.tts)
+    #expect(cfg.minimumOcrScaleFactor == 0.6)
     #expect(cfg.strings.clearAll == "Clear All")
 }
 

@@ -69,7 +69,9 @@
             let scaleRatio =
                 cameraModel.showTransliteration
                     ? CGFloat(original.count) / CGFloat(max(transliteration.count, 1)) : 1.0
-            let scaleFactor = min(max(scaleRatio, 0.6), 1.0)
+            let scaleFactor = min(
+                max(scaleRatio, ctx.config.minimumOcrScaleFactor), 1.0
+            )
             let fontSize = max(Self.minFontSize, frame.height * scaleFactor)
 
             let estimatedHeight = max(Self.minTapTarget, fontSize + 12)
