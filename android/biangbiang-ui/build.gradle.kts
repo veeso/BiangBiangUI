@@ -44,7 +44,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.veeso.BiangBiangUI"
                 artifactId = "biangbiang-ui"
-                version = project.version.takeIf { it != "unspecified" }?.toString() ?: "7.0.0"
+                version = project.version.takeIf { it != "unspecified" }?.toString() ?: "0.4.0"
             }
         }
     }
