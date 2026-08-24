@@ -62,11 +62,17 @@ actor QuranMatcher {
         for (key, _) in ranked {
             for index in tokenIndex[key] ?? [] {
                 candidateSet.insert(index)
-                if candidateSet.count >= candidateCap { break }
+                if candidateSet.count >= candidateCap {
+                    break
+                }
             }
-            if candidateSet.count >= candidateCap { break }
+            if candidateSet.count >= candidateCap {
+                break
+            }
         }
-        if candidateSet.isEmpty { return nil }
+        if candidateSet.isEmpty {
+            return nil
+        }
 
         // 3. Substring-fit Levenshtein on candidates.
         let normChars = Array(norm)
@@ -94,8 +100,12 @@ actor QuranMatcher {
     /// Min edit distance from `short` to any substring of `long`.
     /// Free start (first row zero) and free end (min of last row).
     static func substringFitDistance(short: [Character], long: [Character]) -> Int {
-        if short.isEmpty { return 0 }
-        if long.isEmpty { return short.count }
+        if short.isEmpty {
+            return 0
+        }
+        if long.isEmpty {
+            return short.count
+        }
 
         var prev = Array(repeating: 0, count: long.count + 1)
         var curr = Array(repeating: 0, count: long.count + 1)
@@ -119,8 +129,12 @@ actor QuranMatcher {
     static func levenshtein(_ a: String, _ b: String) -> Int {
         let aChars = Array(a)
         let bChars = Array(b)
-        if aChars.isEmpty { return bChars.count }
-        if bChars.isEmpty { return aChars.count }
+        if aChars.isEmpty {
+            return bChars.count
+        }
+        if bChars.isEmpty {
+            return aChars.count
+        }
 
         var prev = Array(0 ... bChars.count)
         var curr = Array(repeating: 0, count: bChars.count + 1)

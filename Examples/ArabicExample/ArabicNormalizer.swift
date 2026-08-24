@@ -37,12 +37,16 @@ nonisolated struct ArabicNormalizer {
             let v = scalar.value
 
             // Tatweel — always dropped.
-            if v == 0x0640 { continue }
+            if v == 0x0640 {
+                continue
+            }
 
             switch mode {
             case .matching:
                 // Harakat (U+064B–U+0652) + superscript alef (U+0670)
-                if (0x064B ... 0x0652).contains(v) || v == 0x0670 { continue }
+                if (0x064B ... 0x0652).contains(v) || v == 0x0670 {
+                    continue
+                }
                 // Alef variants → ا
                 if v == 0x0623 || v == 0x0625 || v == 0x0622 || v == 0x0671 {
                     scalars.append(Unicode.Scalar(0x0627)!)

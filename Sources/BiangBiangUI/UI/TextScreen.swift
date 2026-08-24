@@ -10,14 +10,12 @@
 //    • Processing: ctx.engine.process(inputText) — engine already encapsulates
 //      the active variant's transliterator; no mode enum needed here.
 //    • TTS button: shown only when ctx.activeVariant?.ttsLanguageCode != nil.
-//    • Translation section: shown only when ctx.activeVariant?.translatable == true
-//      (data-driven; no hard-coded Chinese / Cantonese check). The Translation
+//    • Translation section: shown only when the active variant has a
+//      translationLanguageCode (data-driven; no hard-coded language check). The Translation
 //      framework (iOS 18+) is used via a dedicated sub-view gated with
 //      @available(iOS 18, *). On iOS 17 the translate button is not shown.
-//      Source language is derived from ctx.activeVariant?.ttsLanguageCode because
-//      that is the BCP-47 code for the variant's natural language. If a translatable
-//      variant has a nil ttsLanguageCode, the Translation framework receives an empty
-//      Locale.Language — the translate button simply won't produce output.
+//      Source language is derived from ctx.activeVariant?.translationLanguageCode,
+//      independently of the variant's TTS language.
 //    • Plugin hook: after producing outputText for non-empty input, a ProcessedText
 //      is built and each plugin's onProcessedText(_:) is called. The first plugin
 //      that returns a non-nil inlineResultView(for:) replaces the plain output box.
@@ -65,14 +63,20 @@
                 VStack(alignment: .leading, spacing: AppDesign.sectionSpacing) {
                     inputSection
                     outputSection
-                    if ctx.activeVariant?.translatable == true {
+                    if let translationLanguageCode = ctx.activeVariant?.translationLanguageCode {
                         #if canImport(Translation)
                             if #available(iOS 18, *) {
                                 TranslationSection(
                                     inputText: inputText,
                                     strings: ctx.config.strings,
-                                    ttsLanguageCode: ctx.activeVariant?.ttsLanguageCode,
+                                    translationLanguageCode: translationLanguageCode,
                                     userLanguage: ctx.settings.userLanguage
+                                )
+                                .id(
+                                    TranslationLanguagePair(
+                                        source: translationLanguageCode,
+                                        target: ctx.settings.userLanguage
+                                    )
                                 )
                             }
                         #endif
@@ -310,6 +314,13 @@
     // MARK: - TranslationSection (iOS 18+)
 
     #if canImport(Translation)
+        /// View identity for translation state. Changing either language recreates
+        /// `TranslationSection`, preventing reuse of a configuration for an old pair.
+        private struct TranslationLanguagePair: Hashable {
+            let source: String
+            let target: String
+        }
+
         /// Isolated sub-view that owns the iOS 18 `TranslationSession.Configuration` state.
         /// Keeping it in a separate struct avoids sprinkling `@available(iOS 18, *)` on every
         /// method of `TextScreen` that touches `TranslationSession`.
@@ -317,7 +328,7 @@
         private struct TranslationSection: View {
             let inputText: String
             let strings: UIStrings
-            let ttsLanguageCode: String?
+            let translationLanguageCode: String
             let userLanguage: String
 
             @State private var translatedText: String = ""
@@ -340,10 +351,6 @@
                             .buttonStyle(.borderedProminent)
                             .buttonBorderShape(.capsule)
                             .font(.headline)
-                            // Source language is derived from the active variant's ttsLanguageCode,
-                            // which is the BCP-47 tag for the variant's natural written language.
-                            // If ttsLanguageCode is nil the Locale.Language is constructed from ""
-                            // and the translation simply won't execute — acceptable per spec.
                             .translationTask(translateConfig) { session in
                                 // Capture values before leaving the calling actor so the
                                 // session — which translationTask delivers on its own
@@ -375,7 +382,7 @@
                     return
                 }
                 translateConfig = TranslationSession.Configuration(
-                    source: Locale.Language(identifier: ttsLanguageCode ?? ""),
+                    source: Locale.Language(identifier: translationLanguageCode),
                     target: Locale.Language(identifier: userLanguage)
                 )
             }

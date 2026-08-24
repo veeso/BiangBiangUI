@@ -45,7 +45,7 @@ public enum ChineseConfig {
                         displayName: "Simplified",
                         transliterator: PinyinTransliterator(),
                         ttsLanguageCode: "zh-CN",
-                        translatable: true
+                        translationLanguageCode: "zh-CN"
                     ),
                 ]
             ),
@@ -86,7 +86,7 @@ fun chineseConfig(context: Context): BiangBiangConfig {
                         displayName = "Simplified",
                         transliterator = PinyinTransliterator(),
                         ttsLanguageCode = "zh-CN",
-                        translatable = true,
+                        translationLanguageCode = "zh-CN",
                     ),
                 ),
             ),
@@ -203,13 +203,21 @@ LanguageProfile(
 
 A transliteration variant within a profile (e.g. Simplified vs Cantonese).
 
-| Field             | Type             | Required | Purpose                                    |
-| ----------------- | ---------------- | -------- | ------------------------------------------ |
-| `id`              | `String`         | yes      | Stable variant identifier                  |
-| `displayName`     | `String`         | yes      | User-facing variant name                   |
-| `transliterator`  | `Transliterator` | yes      | Converts an isolated script span to Latin  |
-| `ttsLanguageCode` | `String?`        | no       | BCP-47 code; `nil` hides the Listen button |
-| `translatable`    | `Bool`           | yes      | Whether the Translate UI is shown for this |
+| Field                     | Type             | Required | Purpose                                      |
+| ------------------------- | ---------------- | -------- | -------------------------------------------- |
+| `id`                      | `String`         | yes      | Stable variant identifier                    |
+| `displayName`             | `String`         | yes      | User-facing variant name                     |
+| `transliterator`          | `Transliterator` | yes      | Converts an isolated script span to Latin    |
+| `ttsLanguageCode`         | `String?`        | yes      | BCP-47 code; `nil` hides the Listen button   |
+| `translationLanguageCode` | `String?`        | yes      | BCP-47 source; `nil` hides translation tools |
+
+`translationLanguageCode` is independent of `ttsLanguageCode`. The
+translation services never fall back to the TTS code. For example, Cantonese
+can use `zh-HK` for speech and `zh-CN` for translation.
+
+Version 7 removes `translatable`. When migrating a variant, replace
+`translatable: true` / `translatable = true` with the appropriate BCP-47
+translation source code. Replace `false` with `nil` / `null`.
 
 ## SettingDescriptor
 

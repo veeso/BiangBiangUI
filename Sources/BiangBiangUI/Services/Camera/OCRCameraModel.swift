@@ -155,7 +155,9 @@
             from _: AVCaptureConnection
         ) {
             // Do not capture while a still image is set.
-            if captureSuspended { return }
+            if captureSuspended {
+                return
+            }
 
             let now = Date()
             guard now.timeIntervalSince(lastProcessingTime) > 1 else { return }
@@ -411,7 +413,9 @@
         /// the captured/gallery still path so detected boxes and the
         /// pixel→view aspect-fit overlay are correct.
         nonisolated static func uprightCGImage(from image: UIImage) -> CGImage? {
-            if image.imageOrientation == .up { return image.cgImage }
+            if image.imageOrientation == .up {
+                return image.cgImage
+            }
             let format = UIGraphicsImageRendererFormat.default()
             format.scale = image.scale
             let renderer = UIGraphicsImageRenderer(size: image.size, format: format)

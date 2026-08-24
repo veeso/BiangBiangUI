@@ -35,7 +35,7 @@ public enum ArabicConfig {
                         displayName: "Arabic",
                         transliterator: ArabicTransliterator(),
                         ttsLanguageCode: "ar",
-                        translatable: true
+                        translationLanguageCode: "ar"
                     ),
                 ]
             ),

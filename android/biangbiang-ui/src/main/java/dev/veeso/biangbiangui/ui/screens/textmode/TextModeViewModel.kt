@@ -27,9 +27,9 @@ import kotlinx.coroutines.launch
  *   engine and re-processes (the Android equivalent of iOS `rebuildEngine()`).
  * - TTS moved out of the VM: the screen drives the resolved `AudioProvider`
  *   directly (plugin override or system TTS), matching iOS.
- * - `translate` source language is derived from the active variant's
- *   `ttsLanguageCode` (BCP-47), the same basis iOS uses for the Translation
- *   framework; target is the user's selected `userLanguage`.
+ * - `translate` source language is the active variant's dedicated
+ *   `translationLanguageCode` (BCP-47), independently of TTS; target is the
+ *   user's selected `userLanguage`.
  */
 class TextModeViewModel : ViewModel() {
 
@@ -92,15 +92,15 @@ class TextModeViewModel : ViewModel() {
     }
 
     /**
-     * Translates the current input via ML Kit. [sourceLanguageCode] is the
-     * active variant's BCP-47 `ttsLanguageCode` (its natural written
-     * language); [userLanguage] is the selected translation target.
+     * Translates the current input via ML Kit. [translationLanguageCode] is the
+     * active variant's BCP-47 translation source; [userLanguage] is the selected
+     * translation target.
      */
-    fun translate(sourceLanguageCode: String?, userLanguage: String) {
+    fun translate(translationLanguageCode: String?, userLanguage: String) {
         val text = _inputText.value.trim()
         if (text.isEmpty()) return
 
-        val source = sourceLanguageCode
+        val source = translationLanguageCode
             ?.let { TranslateLanguage.fromLanguageTag(it) }
             ?: TranslateLanguage.fromLanguageTag("")
         val target = TranslateLanguage.fromLanguageTag(userLanguage)

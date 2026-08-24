@@ -11,7 +11,6 @@ import dev.veeso.biangbiangui.protocols.FeaturePlugin
 import dev.veeso.biangbiangui.protocols.ProcessedText
 import dev.veeso.biangbiangui.protocols.Transliterator
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -38,9 +37,10 @@ class ConfigSeamTest {
         assertEquals("mandarin", p.variantId)
     }
 
-    @Test fun chineseProfileHasThreeVariantsAndCantoneseNotTranslatable() {
-        val mandarin = LanguageVariant("mandarin", "Simplified", upcase, "zh-CN", true)
-        val canto = LanguageVariant("cantonese", "Cantonese", upcase, "zh-HK", false)
+    @Test fun languageVariantsSeparateTtsAndTranslationCodes() {
+        val mandarin = LanguageVariant("mandarin", "Simplified", upcase, "zh-CN", "zh-CN")
+        val canto = LanguageVariant("cantonese", "Cantonese", upcase, "zh-HK", "zh-CN")
+        val unavailable = LanguageVariant("unavailable", "Unavailable", upcase, "ja-JP", null)
         val profile = LanguageProfile(
             id = "chinese",
             displayName = "Chinese",
@@ -49,7 +49,9 @@ class ConfigSeamTest {
             variants = listOf(mandarin, mandarin, canto),
         )
         assertEquals(3, profile.variants.size)
-        assertFalse(profile.variants.last().translatable)
+        assertEquals("zh-HK", canto.ttsLanguageCode)
+        assertEquals("zh-CN", canto.translationLanguageCode)
+        assertNull(unavailable.translationLanguageCode)
         assertTrue(profile.scriptRanges.first().contains(0x4F60u))
     }
 

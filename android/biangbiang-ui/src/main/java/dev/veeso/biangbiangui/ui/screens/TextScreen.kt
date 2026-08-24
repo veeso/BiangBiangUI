@@ -70,8 +70,8 @@ import kotlinx.coroutines.launch
  * - Processing via `ctx.engine` (no Mandarin/Cantonese mode enum).
  * - TTS button shown only when active variant `ttsLanguageCode != null`,
  *   driven through `ctx.audio` (plugin override else system TTS).
- * - Translation section shown only when active variant `translatable == true`
- *   (data-driven; no hard-coded Chinese check).
+ * - Translation section shown only when the active variant has a
+ *   `translationLanguageCode` (data-driven; no hard-coded language check).
  * - Plugin hook: after output is produced a `ProcessedText(source=TEXT)` is
  *   dispatched to every plugin `onProcessedText`; the first plugin
  *   `inlineResultView` replaces the plain output box.
@@ -245,7 +245,7 @@ fun TextScreen(viewModel: TextModeViewModel = viewModel()) {
                 }
             }
 
-            if (activeVariant?.translatable == true) {
+            if (activeVariant?.translationLanguageCode != null) {
                 SectionView(
                     title = ctx.config.strings.translationTitle,
                     actionLabel = ctx.config.strings.copy,
@@ -271,7 +271,7 @@ fun TextScreen(viewModel: TextModeViewModel = viewModel()) {
                     Button(
                         onClick = {
                             viewModel.translate(
-                                activeVariant.ttsLanguageCode,
+                                activeVariant.translationLanguageCode,
                                 userLanguage,
                             )
                         },

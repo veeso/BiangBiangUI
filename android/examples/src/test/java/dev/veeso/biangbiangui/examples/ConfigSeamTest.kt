@@ -35,14 +35,16 @@ class ConfigSeamTest {
         // pinyin produced
         assertTrue(simplified.transliterator.transliterate("你好").contains("n"))
         val canto = cfg.languages[0].variants.first { it.id == "cantonese" }
-        assertFalse(canto.translatable)
+        assertEquals("zh-HK", canto.ttsLanguageCode)
+        assertEquals("zh-CN", canto.translationLanguageCode)
     }
 
-    @Test fun chineseProfileHasThreeVariantsAndCantoneseNotTranslatable() {
+    @Test fun chineseProfileHasThreeVariantsAndDistinctCantoneseLanguageCodes() {
         val cfg = chineseConfig(context)
         val profile = cfg.languages[0]
         assertEquals(3, profile.variants.size)
-        assertFalse(profile.variants.last().translatable)
+        assertEquals("zh-HK", profile.variants.last().ttsLanguageCode)
+        assertEquals("zh-CN", profile.variants.last().translationLanguageCode)
         assertTrue(profile.scriptRanges.first().contains(0x4F60u))
     }
 
@@ -51,6 +53,7 @@ class ConfigSeamTest {
         assertEquals(1, cfg.plugins.size)
         assertTrue(cfg.extraSettings.any { it.key == "quranMode" })
         assertEquals("ar", cfg.languages[0].variants[0].ttsLanguageCode)
+        assertEquals("ar", cfg.languages[0].variants[0].translationLanguageCode)
     }
 
     @Test fun arabicTransliteratorRomanises() {

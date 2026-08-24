@@ -14,7 +14,7 @@ import dev.veeso.biangbiangui.config.OcrRecognizer
  * Cantonese). Branding mirrors the BiangBiang Hanzi app. No plugins.
  *
  * Mirrors iOS `ChineseConfig.chineseConfig` exactly (same branding,
- * scriptRanges, ocrRecognizer, variant ids / ttsLanguageCode / translatable).
+ * scriptRanges, ocrRecognizer, variant ids, and TTS/translation language codes).
  * The iOS config is a static `let`; on Android it is a factory function
  * because [JyutpingDictionary] needs a [Context] for asset loading
  * (`Bundle.module` -> `Context.assets`).
@@ -45,21 +45,21 @@ fun chineseConfig(context: Context): BiangBiangConfig {
                         displayName = "Simplified",
                         transliterator = pinyin,
                         ttsLanguageCode = "zh-CN",
-                        translatable = true,
+                        translationLanguageCode = "zh-CN",
                     ),
                     LanguageVariant(
                         id = "traditional",
                         displayName = "Traditional",
                         transliterator = pinyin,
                         ttsLanguageCode = "zh-CN",
-                        translatable = true,
+                        translationLanguageCode = "zh-CN",
                     ),
                     LanguageVariant(
                         id = "cantonese",
                         displayName = "Cantonese",
                         transliterator = jyutping,
                         ttsLanguageCode = "zh-HK",
-                        translatable = false,
+                        translationLanguageCode = "zh-CN",
                     ),
                 ),
             ),

@@ -73,7 +73,7 @@ Harakat Android's rotation drift by construction).
 - iOS: SwiftPM over git tag —
   `.package(url: "https://github.com/veeso/BiangBiangUI", from: "x.y.z")`
 - Android: JitPack —
-  `implementation("com.github.veeso.BiangBiangUI:biangbiang-ui:vX.Y.Z")`
+  `implementation("com.github.veeso:BiangBiangUI:vX.Y.Z")`
 - Both platforms share one tag `vX.Y.Z`.
 
 ## Platform Configuration

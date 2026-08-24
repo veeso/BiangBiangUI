@@ -86,7 +86,9 @@
                 }
                 .navigationTitle(ctx.config.strings.tabHistory)
                 .onChange(of: ctx.audio.isPlaying) { _, playing in
-                    if !playing { speakingID = nil }
+                    if !playing {
+                        speakingID = nil
+                    }
                 }
                 .confirmationDialog(
                     ctx.config.strings.clearAllConfirm,

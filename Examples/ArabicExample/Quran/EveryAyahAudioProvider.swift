@@ -174,7 +174,9 @@ public final class EveryAyahAudioProvider: NSObject, AudioProvider, AVSpeechSynt
         _: AVSpeechSynthesizer, didFinish _: AVSpeechUtterance
     ) {
         Task { @MainActor in
-            if case .speakingTTS = state { state = .idle }
+            if case .speakingTTS = state {
+                state = .idle
+            }
         }
     }
 
@@ -182,7 +184,9 @@ public final class EveryAyahAudioProvider: NSObject, AudioProvider, AVSpeechSynt
         _: AVSpeechSynthesizer, didCancel _: AVSpeechUtterance
     ) {
         Task { @MainActor in
-            if case .speakingTTS = state { state = .idle }
+            if case .speakingTTS = state {
+                state = .idle
+            }
         }
     }
 }

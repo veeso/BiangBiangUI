@@ -111,7 +111,9 @@ public final class SystemTTSAudioProvider: NSObject, AudioProvider, AVSpeechSynt
         _: AVSpeechSynthesizer, didFinish _: AVSpeechUtterance
     ) {
         Task { @MainActor in
-            if case .speaking = state { state = .idle }
+            if case .speaking = state {
+                state = .idle
+            }
         }
     }
 
@@ -119,7 +121,9 @@ public final class SystemTTSAudioProvider: NSObject, AudioProvider, AVSpeechSynt
         _: AVSpeechSynthesizer, didCancel _: AVSpeechUtterance
     ) {
         Task { @MainActor in
-            if case .speaking = state { state = .idle }
+            if case .speaking = state {
+                state = .idle
+            }
         }
     }
 }

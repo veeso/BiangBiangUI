@@ -21,16 +21,23 @@ struct UpcaseTransliterator: Transliterator {
     #expect(p.variantId == "mandarin")
 }
 
-@Test func chineseProfileHasThreeVariantsAndCantoneseNotTranslatable() {
+@Test func languageVariantsSeparateTTSAndTranslationCodes() {
     let mandarin = LanguageVariant(id: "mandarin", displayName: "Simplified",
-                                   transliterator: UpcaseTransliterator(), ttsLanguageCode: "zh-CN", translatable: true)
+                                   transliterator: UpcaseTransliterator(), ttsLanguageCode: "zh-CN",
+                                   translationLanguageCode: "zh-CN")
     let canto = LanguageVariant(id: "cantonese", displayName: "Cantonese",
-                                transliterator: UpcaseTransliterator(), ttsLanguageCode: "zh-HK", translatable: false)
+                                transliterator: UpcaseTransliterator(), ttsLanguageCode: "zh-HK",
+                                translationLanguageCode: "zh-CN")
+    let unavailable = LanguageVariant(id: "unavailable", displayName: "Unavailable",
+                                      transliterator: UpcaseTransliterator(), ttsLanguageCode: "ja-JP",
+                                      translationLanguageCode: nil)
     let profile = LanguageProfile(id: "chinese", displayName: "Chinese",
                                   scriptRanges: [0x4E00 ... 0x9FFF], ocrRecognizer: .chinese,
                                   variants: [mandarin, mandarin, canto])
     #expect(profile.variants.count == 3)
-    #expect(profile.variants.last?.translatable == false)
+    #expect(canto.ttsLanguageCode == "zh-HK")
+    #expect(canto.translationLanguageCode == "zh-CN")
+    #expect(unavailable.translationLanguageCode == nil)
     #expect(profile.scriptRanges.first?.contains(0x4F60) == true)
 }
 
@@ -40,7 +47,8 @@ struct UpcaseTransliterator: Transliterator {
     let v = try #require(cfg.languages[0].variants.first { $0.id == "simplified" })
     #expect(v.transliterator.transliterate("你好").contains("n")) // pinyin produced
     let canto = try #require(cfg.languages[0].variants.first { $0.id == "cantonese" })
-    #expect(canto.translatable == false)
+    #expect(canto.ttsLanguageCode == "zh-HK")
+    #expect(canto.translationLanguageCode == "zh-CN")
 }
 
 @MainActor
@@ -94,6 +102,7 @@ struct NoopPlugin: FeaturePlugin {
     #expect(cfg.plugins.count == 1)
     #expect(cfg.extraSettings.contains { $0.key == "quranMode" })
     #expect(cfg.languages[0].variants[0].ttsLanguageCode == "ar")
+    #expect(cfg.languages[0].variants[0].translationLanguageCode == "ar")
 }
 
 @Test func arabicTransliteratorRomanises() {

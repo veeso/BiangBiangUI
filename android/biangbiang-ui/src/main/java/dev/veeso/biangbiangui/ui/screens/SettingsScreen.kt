@@ -53,7 +53,7 @@ import kotlinx.coroutines.launch
  * mirrors iOS Phase 3 `SettingsScreen`.
  *
  * 1. Shared core — translation-target picker (disabled as data when the active
- *    variant `translatable == false`), History Clear All, bug-report (GitHub
+ *    variant has no translation language code), History Clear All, bug-report (GitHub
  *    issue URL from `branding.githubRepo`, email `branding.supportEmail`,
  *    subject `[Android] Bug report – <appName>`).
  * 2. Data-driven variant segmented picker — only when the active profile has
@@ -73,7 +73,7 @@ fun SettingsScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val translatable = ctx.activeVariant?.translatable ?: true
+    val translationAvailable = ctx.activeVariant?.translationLanguageCode != null
     val history by ctx.settings.history.collectAsStateWithLifecycle(initialValue = emptyList())
     val userLanguage by ctx.settings.userLanguage
         .collectAsStateWithLifecycle(initialValue = "")
@@ -136,7 +136,7 @@ fun SettingsScreen() {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(
                         onClick = { languageSelectExpanded = true },
-                        enabled = translatable,
+                        enabled = translationAvailable,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(currentLanguageName(allLanguages, userLanguage))
@@ -160,7 +160,7 @@ fun SettingsScreen() {
                         }
                     }
                 }
-                if (!translatable) {
+                if (!translationAvailable) {
                     Text(
                         "Translation is unavailable for the selected variant.",
                         style = MaterialTheme.typography.bodySmall,

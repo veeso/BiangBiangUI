@@ -12,6 +12,6 @@ data class LanguageVariant(
     val transliterator: Transliterator,
     /** BCP-47 code for TTS; `null` hides the Listen control for this variant. */
     val ttsLanguageCode: String?,
-    /** `false` hides the translation UI as data — no conditional code path. */
-    val translatable: Boolean,
+    /** BCP-47 source code for translation; `null` hides translation controls. */
+    val translationLanguageCode: String?,
 )

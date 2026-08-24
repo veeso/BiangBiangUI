@@ -17,7 +17,7 @@ import dev.veeso.biangbiangui.examples.arabic.quran.QuranPlugin
  * Harakat-Lens app.
  *
  * Mirrors iOS `ArabicConfig.arabicConfig` exactly (same branding,
- * scriptRanges, ocrRecognizer, single `ar`/translatable variant, `quranMode`
+ * scriptRanges, ocrRecognizer, single `ar` TTS/translation variant, `quranMode`
  * toggle descriptor, single [QuranPlugin]). The iOS config is a static `let`;
  * on Android it is a factory function because the transliterator / plugin
  * need a [Context] for asset loading (`Bundle.module` -> `Context.assets`).
@@ -50,7 +50,7 @@ fun arabicConfig(context: Context): BiangBiangConfig {
                         displayName = "Arabic",
                         transliterator = transliterator,
                         ttsLanguageCode = "ar",
-                        translatable = true,
+                        translationLanguageCode = "ar",
                     ),
                 ),
                 ocrService = TesseractOcrService(appContext),

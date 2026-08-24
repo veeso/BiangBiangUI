@@ -20,7 +20,9 @@ actor QuranDataset {
     init() {}
 
     func loadIfNeeded() async {
-        if loaded { return }
+        if loaded {
+            return
+        }
         loaded = true
 
         let ayat = await Self.decodeArray(QuranAyah.self, named: "quran")

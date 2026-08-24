@@ -5,7 +5,7 @@
 //  Config-driven port of SettingsView from BiangBiang Hanzi, restructured
 //  into the three spec layers:
 //    1. Shared core — translation-target language picker (disabled as data
-//       when the active variant `translatable == false`), History "Clear all",
+//       when the active variant has no translation language code), History "Clear all",
 //       and bug-report (GitHub issue URL + support email).
 //    2. Data-driven variant segmented picker — rendered only when the active
 //       profile has more than one variant; binds `settings.selectedVariantId`
@@ -16,7 +16,7 @@
 //       descriptor itself.
 //  Generalisation notes vs. the reference:
 //    • No hard-coded Chinese/Cantonese checks: the disabled-translation state
-//      is driven by `activeVariant.translatable`; the variant list is data.
+//      is driven by `activeVariant.translationLanguageCode`; the variant list is data.
 //    • User-facing strings come from ctx.config.strings everywhere except two
 //      literals inherited verbatim from the reference + sibling precedent: the
 //      confirmation-dialog "Cancel" button (identical to HistoryScreen) and the
@@ -113,7 +113,7 @@
 
         @ViewBuilder
         private func translationLanguageSection(userLanguage: Binding<String>) -> some View {
-            let translatable = ctx.activeVariant?.translatable ?? true
+            let translationAvailable = ctx.activeVariant?.translationLanguageCode != nil
 
             Section {
                 Picker(
@@ -125,11 +125,11 @@
                     }
                 }
                 .pickerStyle(.menu)
-                .disabled(!translatable)
+                .disabled(!translationAvailable)
             } header: {
                 Label(ctx.config.strings.translationLanguage, systemImage: "globe")
             } footer: {
-                if !translatable {
+                if !translationAvailable {
                     Text("Translation is unavailable for the selected variant.")
                 }
             }
