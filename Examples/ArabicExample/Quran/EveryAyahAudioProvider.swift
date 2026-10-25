@@ -83,7 +83,7 @@ public final class EveryAyahAudioProvider: NSObject, AudioProvider, AVSpeechSynt
         player = newPlayer
         state = .loadingAyah(surah: surah, ayah: ayah)
 
-        statusObservation = item.observe(\.status, options: [.new]) { observedItem, _ in
+        statusObservation = item.observe(\.status, options: [.new]) { [weak self] observedItem, _ in
             let status = observedItem.status
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -105,7 +105,7 @@ public final class EveryAyahAudioProvider: NSObject, AudioProvider, AVSpeechSynt
             forName: .AVPlayerItemDidPlayToEndTime,
             object: item,
             queue: .main
-        ) { _ in
+        ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.stop()
             }
