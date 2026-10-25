@@ -58,9 +58,11 @@ jobs:
                         | select((.version | split(".") | map(tonumber)) <= $max)]
                      | sort_by(.version | split(".") | map(tonumber)) | last | .identifier')
           echo "Using runtime $RUNTIME for SDK $SDK"
-          DEVTYPE=$(xcrun simctl list devicetypes --json \
-            | jq -r '[.devicetypes[] | select(.name | test("^iPhone [0-9]+$"))]
+          DEVTYPE=$(xcrun simctl list runtimes --json \
+            | jq -r --arg rt "$RUNTIME" '[.runtimes[] | select(.identifier == $rt) | .supportedDeviceTypes[]
+                       | select(.name | test("^iPhone [0-9]+$"))]
                      | sort_by(.name | capture("(?<n>[0-9]+)").n | tonumber) | last | .identifier')
+          echo "Using device type $DEVTYPE"
           SIM_ID=$(xcrun simctl create ci-iphone "$DEVTYPE" "$RUNTIME")
           xcrun simctl boot "$SIM_ID" || true
           echo "sim_id=$SIM_ID" >> "$GITHUB_OUTPUT"
