@@ -4,7 +4,6 @@ about: Create a report to help us improve
 title: "[BUG] "
 labels: bug
 assignees: veeso
-
 ---
 
 ## Describe the bug
@@ -18,4 +17,3 @@ assignees: veeso
 ---
 
 Issues without the `android` or `iOS` labels will be closed. Please provide the app os with the label
-

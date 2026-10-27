@@ -3,9 +3,21 @@ name: iOS CI
 on:
   push:
     branches: ["main"]
-    paths: ["Sources/**", "Tests/**", "Examples/**", "Package.swift", ".github/workflows/ios.yml"]
+    paths: [
+      "Sources/**",
+      "Tests/**",
+      "Examples/**",
+      "Package.swift",
+      ".github/workflows/ios.yml",
+    ]
   pull_request:
-    paths: ["Sources/**", "Tests/**", "Examples/**", "Package.swift", ".github/workflows/ios.yml"]
+    paths: [
+      "Sources/**",
+      "Tests/**",
+      "Examples/**",
+      "Package.swift",
+      ".github/workflows/ios.yml",
+    ]
   workflow_dispatch:
 
 concurrency:

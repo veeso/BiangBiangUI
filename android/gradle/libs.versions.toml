@@ -70,4 +70,3 @@ icu4j = { module = "com.ibm.icu:icu4j", version.ref = "icu4j" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-

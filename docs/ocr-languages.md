@@ -12,8 +12,8 @@ platform, so config authors know which scripts work before shipping an app.
 
 ## Summary
 
-| `OCRRecognizer` | iOS (Vision)         | Android (ML Kit)             | Transliteration standard           |
-| --------------- | -------------------- | ---------------------------- | ---------------------------------- |
+| `OCRRecognizer` | iOS (Vision)          | Android (ML Kit)              | Transliteration standard           |
+| --------------- | --------------------- | ----------------------------- | ---------------------------------- |
 | `chinese`       | ✅ native             | ✅ native                     | Hanyu Pinyin (Cantonese: Jyutping) |
 | `latin`         | ✅ native             | ✅ native                     | — (no transliteration)             |
 | `arabic`        | ✅ native (Vision R3) | ✅ via OcrService (Tesseract) | Arabic vocalization (ḥarakāt)      |
