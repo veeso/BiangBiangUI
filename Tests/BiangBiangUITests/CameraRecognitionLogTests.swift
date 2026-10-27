@@ -12,6 +12,16 @@ private struct LogLatin: Transliterator {
 @MainActor
 @Suite(.serialized)
 struct CameraRecognitionLogTests {
+    /// Polls for up to five seconds of wall time; a yield count depends on runner load.
+    private func eventually(_ condition: () -> Bool) async {
+        for _ in 0 ..< 500 {
+            if condition() {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
     private func model(
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) -> (OCRCameraModel, TextProcessingEngine) {
@@ -137,14 +147,10 @@ struct CameraRecognitionLogTests {
         await clock.advance(.milliseconds(499))
         #expect(camera.highlightedSessionLogIDs == [first, second])
         await clock.advance(.milliseconds(1))
-        for _ in 0 ..< 20 {
-            await Task.yield()
-        }
+        await eventually { camera.highlightedSessionLogIDs == [second] }
         #expect(camera.highlightedSessionLogIDs == [second])
         await clock.advance(.seconds(1))
-        for _ in 0 ..< 20 {
-            await Task.yield()
-        }
+        await eventually { camera.highlightedSessionLogIDs.isEmpty }
         #expect(camera.highlightedSessionLogIDs.isEmpty)
 
         ingest("新")
@@ -162,9 +168,7 @@ struct CameraRecognitionLogTests {
         #expect(camera.highlightedSessionLogIDs == [fresh])
         camera.endRecognitionSession()
         await clock.advance(.seconds(2))
-        for _ in 0 ..< 20 {
-            await Task.yield()
-        }
+        await eventually { camera.highlightedSessionLogIDs.isEmpty }
         #expect(camera.highlightedSessionLogIDs.isEmpty)
     }
 
@@ -193,11 +197,12 @@ private actor HighlightClock {
     }
 
     func waitForSleepers(_ count: Int) async {
-        for _ in 0 ..< 1000 {
+        // Bound the wait by wall time: a yield count depends on runner load.
+        for _ in 0 ..< 500 {
             if sleepers.count >= count {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(10))
         }
         #expect(sleepers.count >= count)
     }
