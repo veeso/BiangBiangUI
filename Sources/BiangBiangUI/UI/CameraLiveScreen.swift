@@ -23,6 +23,7 @@
 #if canImport(UIKit)
     import PhotosUI
     import SwiftUI
+    import UIKit
 
     /// Live camera surface with OCR overlays and controls.
     ///
@@ -31,8 +32,12 @@
         @Environment(BiangBiangContext.self) private var ctx
         @Bindable var cameraModel: OCRCameraModel
 
+        @Namespace private var cameraCoordinateSpace
+        @State private var previewFrame = CGRect.zero
         @State private var selectedItem: PhotosPickerItem?
         @State private var pinchBaseZoom: CGFloat = 1.0
+        @State private var isBuiltInDisplay = false
+        @State private var interfaceOrientation: UIInterfaceOrientation = .unknown
 
         /// Plugin sheet: the first non-nil inline view for the most-recently
         /// processed recognised texts, or nil when no plugin claims it.
@@ -43,102 +48,132 @@
         }
 
         public var body: some View {
-            GeometryReader { geo in
-                ZStack {
-                    CameraPreview(
-                        session: cameraModel.session,
-                        cameraModel: cameraModel
+            CameraSplitLayout(
+                isBuiltInDisplay: isBuiltInDisplay,
+                cameraSide: CameraLayoutPolicy.cameraSide(for: interfaceOrientation),
+                sidePane: {
+                    CameraSessionLogPane(
+                        log: cameraModel.sessionLog,
+                        strings: ctx.config.strings,
+                        accent: ctx.config.branding.accentColor,
+                        highlightedIDs: cameraModel.highlightedSessionLogIDs,
+                        onCopy: copySessionLogEntry,
+                        onSave: saveSessionLogEntry,
+                        onClear: cameraModel.clearSessionLog
                     )
-                    .ignoresSafeArea()
-
-                    if let image = cameraModel.capturedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color.black)
-                            .ignoresSafeArea()
-                    }
-
-                    ForEach(cameraModel.recognizedTexts) { box in
-                        if let transliteration = cameraModel.transliterationMap[box.id] {
-                            RecognizedTextOverlay(
-                                cameraModel: cameraModel,
-                                original: box.text,
-                                transliteration: transliteration,
-                                boundingBox: box,
-                                viewSize: geo.size
+                },
+                camera: {
+                    GeometryReader { geo in
+                        ZStack {
+                            CameraPreview(
+                                session: cameraModel.session,
+                                cameraModel: cameraModel
                             )
-                        }
-                    }
+                            .onGeometryChange(for: CGRect.self) { [cameraCoordinateSpace] geometry in
+                                geometry.frame(in: .named(cameraCoordinateSpace))
+                            } action: { previewFrame = $0 }
+                            .ignoresSafeArea()
 
-                    if !cameraModel.recognizedTexts.isEmpty {
-                        VStack {
-                            Text(ctx.config.strings.tapToCopyLongPressToSave)
-                                .font(.caption2)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(.ultraThinMaterial, in: Capsule())
-                                .padding(.top, 8)
-                            Spacer()
-                        }
-                        .allowsHitTesting(false)
-                    }
+                            if let image = cameraModel.capturedImage {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .background(Color.black)
+                            }
 
-                    VStack {
-                        Spacer()
-                        if cameraModel.capturedImage == nil
-                            && !cameraModel.availableZoomPresets.isEmpty
-                        {
-                            zoomPresetBar
-                        }
-                        controlBar
-                    }
+                            ForEach(cameraModel.recognizedTexts) { box in
+                                if let transliteration = cameraModel.transliterationMap[box.id] {
+                                    RecognizedTextOverlay(
+                                        cameraModel: cameraModel,
+                                        original: box.text,
+                                        transliteration: transliteration,
+                                        boundingBox: box,
+                                        viewSize: geo.size,
+                                        previewFrame: previewFrame
+                                    )
+                                }
+                            }
 
-                    if cameraModel.showCopiedToast {
-                        VStack {
-                            Spacer()
-                            CopyToast(message: ctx.config.strings.textCopied)
-                                .padding(.bottom, AppDesign.bottomToolbarPadding)
-                        }
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .allowsHitTesting(false)
-                    }
+                            if !cameraModel.recognizedTexts.isEmpty {
+                                VStack {
+                                    Text(ctx.config.strings.tapToCopyLongPressToSave)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(.ultraThinMaterial, in: Capsule())
+                                        .padding(.top, 8)
+                                    Spacer()
+                                }
+                                .allowsHitTesting(false)
+                            }
 
-                    if cameraModel.showSavedToast {
-                        VStack {
-                            Spacer()
-                            CopyToast(message: ctx.config.strings.savedToHistory)
-                                .padding(.bottom, AppDesign.bottomToolbarPadding + 44)
+                            VStack {
+                                Spacer()
+                                if cameraModel.capturedImage == nil,
+                                   !cameraModel.availableZoomPresets.isEmpty
+                                {
+                                    zoomPresetBar
+                                }
+                                controlBar
+                            }
+
+                            if cameraModel.showCopiedToast {
+                                VStack {
+                                    Spacer()
+                                    CopyToast(message: ctx.config.strings.textCopied)
+                                        .padding(.bottom, AppDesign.bottomToolbarPadding)
+                                }
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                                .allowsHitTesting(false)
+                            }
+
+                            if cameraModel.showSavedToast {
+                                VStack {
+                                    Spacer()
+                                    CopyToast(message: ctx.config.strings.savedToHistory)
+                                        .padding(.bottom, AppDesign.bottomToolbarPadding + 44)
+                                }
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                                .allowsHitTesting(false)
+                            }
                         }
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .allowsHitTesting(false)
+                        .coordinateSpace(name: cameraCoordinateSpace)
+                        .animation(
+                            .easeOut(duration: AppDesign.toastAnimation),
+                            value: cameraModel.showCopiedToast
+                        )
+                        .animation(
+                            .easeOut(duration: AppDesign.toastAnimation),
+                            value: cameraModel.showSavedToast
+                        )
                     }
+                    .simultaneousGesture(
+                        MagnifyGesture()
+                            .onChanged { value in
+                                cameraModel.setZoom(pinchBaseZoom * value.magnification)
+                            }
+                            .onEnded { _ in
+                                pinchBaseZoom = cameraModel.zoomFactor
+                            }
+                    )
                 }
-                .animation(
-                    .easeOut(duration: AppDesign.toastAnimation),
-                    value: cameraModel.showCopiedToast
-                )
-                .animation(
-                    .easeOut(duration: AppDesign.toastAnimation),
-                    value: cameraModel.showSavedToast
-                )
-            }
-            .simultaneousGesture(
-                MagnifyGesture()
-                    .onChanged { value in
-                        cameraModel.setZoom(pinchBaseZoom * value.magnification)
-                    }
-                    .onEnded { _ in
-                        pinchBaseZoom = cameraModel.zoomFactor
-                    }
             )
+            .overlay {
+                CameraDisplayObserver { isBuiltIn, orientation in
+                    isBuiltInDisplay = isBuiltIn
+                    interfaceOrientation = orientation
+                    cameraModel.updateInterfaceOrientation(orientation)
+                }
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+            }
             .task {
+                cameraModel.beginRecognitionSession()
                 await cameraModel.checkPermissionsAndStart()
             }
             .onDisappear {
-                cameraModel.recognizedTexts = []
-                cameraModel.transliterationMap.removeAll()
+                cameraModel.endRecognitionSession()
                 Task { await cameraModel.stopSession() }
             }
             // Plugin camera seam: fire onProcessedText for each box whenever the
@@ -152,6 +187,15 @@
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+        }
+
+        private func copySessionLogEntry(_ entry: CameraSessionLog.Entry) {
+            CameraSessionLogActions.copy(entry, camera: cameraModel)
+        }
+
+        private func saveSessionLogEntry(_ entry: CameraSessionLog.Entry) {
+            CameraSessionLogActions.save(entry, camera: cameraModel, settings: ctx.settings,
+                                         variantID: ctx.activeVariant?.id ?? "")
         }
 
         // MARK: - Zoom preset bar (verbatim from reference)
@@ -262,11 +306,11 @@
             .accessibilityLabel("Scan photo from gallery")
             .onChange(of: selectedItem) { _, newItem in
                 guard let newItem else { return }
+                let sessionRevision = cameraModel.recognitionSessionRevision
                 Task {
-                    if let data = try? await newItem.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data)
-                    {
-                        cameraModel.recognizeGalleryImage(image)
+                    await cameraModel.loadGalleryImage(sessionRevision: sessionRevision) {
+                        guard let data = try? await newItem.loadTransferable(type: Data.self) else { return nil }
+                        return UIImage(data: data)
                     }
                     selectedItem = nil
                 }

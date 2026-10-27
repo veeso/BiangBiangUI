@@ -113,6 +113,7 @@ divergence.
 | TextProcessingEngine | `TextProcessing...`     | Same       |
 | Camera preview glue  | `Camera*`/`Camera*`     | Same role  |
 | CameraZoom           | `Camera/CameraZoom`     | Same behav |
+| CameraSessionLog     | `CameraSessionLog`      | Same behav |
 | OCR camera model     | `*OCR*`/`StillImageOcr` | D4 D13     |
 | OCR rotation         | `*`/`OcrRotation`       | D5 D13     |
 
@@ -120,9 +121,13 @@ iOS history codec is inline in `HistoryStore`; Android extracts
 `HistorySerializer` (D12). iOS camera-preview glue is
 `Services/Camera/CameraPreview.swift`; Android is
 `services/camera/CameraUtils.kt`. iOS OCR rotation is inline in the Vision
-path; Android isolates `services/camera/OcrRotation.kt` (D5). The Android
-still-image OCR class was `services/camera/OcrService.kt` and was renamed
-`StillImageOcr` to free the `OcrService` name for the new protocol (D13).
+path; Android isolates `services/camera/OcrRotation.kt` (D5). The bounded
+recognition log is `Services/Camera/CameraSessionLog.swift` and
+`services/camera/CameraSessionLog.kt`. Android's screen-scoped log state is
+held in a lifecycle `ViewModel` so rows and deadlines survive Activity
+recreation (D14). The Android still-image OCR class was
+`services/camera/OcrService.kt` and was renamed `StillImageOcr` to free the
+`OcrService` name for the new protocol (D13).
 
 ## Library: UI screens and components
 
@@ -130,21 +135,25 @@ iOS files are `UI/<stem>.swift`; Android `ui/<stem>.kt`. Android screen
 files live under `ui/screens/...`; the prose below the table gives the exact
 Android paths for the rows that move.
 
-| Type / screen      | iOS stem               | Parity |
-| ------------------ | ---------------------- | ------ |
-| Context wiring     | `BiangBiangContext`    | Same   |
-| Root container     | `BiangBiangRootView`   | Same   |
-| Text screen        | `TextScreen`           | D6 D7  |
-| Camera screen      | `CameraScreen`         | Same   |
-| Camera live screen | `CameraLiveScreen`     | D5     |
-| Camera permission  | `CameraPermissionScr.` | Same   |
-| Recognized overlay | `RecognizedTextOvrl.`  | Same   |
-| History screen     | `HistoryScreen`        | Same   |
-| Settings screen    | `SettingsScreen`       | Same   |
-| Copy toast         | `Components/CopyToast` | Same   |
-| Section view       | `Components/SectionV.` | Same   |
-| Review prompt UI   | (inline in iOS)        | D1     |
-| Design tokens      | `Design/AppDesign`     | Same   |
+| Type / screen           | iOS stem                | Parity |
+| ----------------------- | ----------------------- | ------ |
+| Context wiring          | `BiangBiangContext`     | Same   |
+| Root container          | `BiangBiangRootView`    | Same   |
+| Text screen             | `TextScreen`            | D6 D7  |
+| Camera screen           | `CameraScreen`          | Same   |
+| Camera live screen      | `CameraLiveScreen`      | D5 D14 |
+| Camera layout policy    | `CameraLayoutPolicy`    | Same   |
+| Camera display observer | `CameraDisplayObserver` | Same   |
+| Camera split layout     | `CameraSplitLayout`     | Same   |
+| Camera session log pane | `CameraSessionLogPane`  | Same   |
+| Camera permission       | `CameraPermissionScr.`  | Same   |
+| Recognized overlay      | `RecognizedTextOvrl.`   | Same   |
+| History screen          | `HistoryScreen`         | Same   |
+| Settings screen         | `SettingsScreen`        | Same   |
+| Copy toast              | `Components/CopyToast`  | Same   |
+| Section view            | `Components/SectionV.`  | Same   |
+| Review prompt UI        | (inline in iOS)         | D1     |
+| Design tokens           | `Design/AppDesign`      | Same   |
 
 Android counterparts: `ui/BiangBiangContext.kt`, `ui/BiangBiangRoot.kt`,
 `ui/screens/TextScreen.kt` (+ `ui/screens/textmode/TextModeViewModel.kt`),
@@ -156,6 +165,19 @@ Android counterparts: `ui/BiangBiangContext.kt`, `ui/BiangBiangRoot.kt`,
 UI is inline on iOS), and `ui/AppDesign.kt` + `ui/theme/{Color,Theme,Type}.kt`
 for design tokens. Android splits design tokens into the Compose `theme`
 files (idiomatic); values match.
+
+Camera layout files live at `ui/screens/camera/CameraLayoutPolicy.kt`,
+`CameraDisplayObserver.kt`, `CameraSplitLayout.kt`, and
+`CameraSessionLogPane.kt`. The iOS equivalents are under `UI/`. Android also
+has `ui/screens/camera/CameraSessionLogState.kt`; it retains only the
+in-memory log, revision and highlight deadlines across Activity recreation.
+Both display observers normalize the physical camera side while the split is
+wide; on Android, natural-landscape tablet rotations map onto the same 90/270
+policy tested for portrait-natural foldables. Both panes use the same log
+strings and 1.5-second highlight hold, then fade with the existing toast
+duration. The shared string keys are `cameraLogTitle`, `cameraLogEmpty` and
+`cameraLogClear`; `logHighlightDuration` / `LOG_HIGHLIGHT_DURATION_MS` is
+1500 ms on both platforms.
 
 ## Examples: ChineseExample
 
@@ -238,8 +260,16 @@ Android isolates rotation handling in `services/camera/OcrRotation.kt`, a
 single-basis implementation: ML Kit boxes and the view mapping share one
 upright basis (`uprightSize`, `mapBoxToView`, `isSane`), fixing the
 Harakat-Android coordinate-drift bug by construction. The iOS Vision path
-never had this bug (Vision returns normalized coordinates), so iOS keeps the
-inline handling. Both platforms are correct; the implementation differs.
+returns normalized coordinates, but its live camera path still had a
+landscape coordinate-basis risk: the preview and video-data-output
+connections could rotate differently from the delivered pixel dimensions.
+`OCRCameraModel` now uses `AVCaptureDevice.RotationCoordinator`, serializes
+preview/output connection changes with frame delivery, stamps live results
+with orientation and session revisions, and maps landscape boxes from the
+upright pixel size. Portrait's existing metadata conversion and
+captured/gallery aspect-fit path remain intact. `CameraOrientationTests`
+covers the stale-basis guard and landscape pane mapping; Android's existing
+`LiveOcrAnalyzerTest` and `OcrRotation` tests cover its pixel basis.
 
 ### D6 translation engine and version gate
 
@@ -328,6 +358,17 @@ not represent parity breaks:
    `TesseractOcrService` (Tesseract4Android, `ara.traineddata` bundled)
    because ML Kit ships no Arabic model. The `OcrService` protocol seam
    is the supported extension point for exactly this case.
+
+### D14 camera session state ownership
+
+Both platforms keep the bounded recognition log in memory, invalidate stale
+results when Camera is left, and clear the log on a real session exit. iOS
+stores it in `OCRCameraModel`, which outlives a tab visit and uses a monotonic
+session revision. Android stores it in `CameraSessionLogState`, a
+`ViewModel` scoped to the nearest existing `ViewModelStoreOwner`, so the log
+and remaining highlight deadlines survive Activity recreation. A new
+`ViewModelStore` starts empty; OCR text is not saved to disk or
+`SavedStateHandle`.
 
 ## Test parity
 
@@ -477,18 +518,34 @@ Android-only `LiveOcrAnalyzerTest` (no iOS analogue):
 - `sampleBoxMapsToExpectedUprightViewCoordinates`
 - `saneFilterUsesUprightBasis`
 
-`LiveOcrAnalyzerTest` exists because Android's ML Kit OCR returns
-buffer-space pixel coordinates that must be rotated into an upright basis
-(D5); iOS Vision returns normalized coordinates so the bug class does not
-exist there and needs no test. Sanctioned platform-only test, not a coverage
-gap.
+### Wide camera split and session log
+
+Mirrored suites cover the split threshold, physical pane order, RTL content
+direction, bounded log identity/deduplication/eviction, and slot identity
+during geometry changes: `CameraLayoutPolicyTests` / `CameraLayoutPolicyTest`,
+`CameraSessionLogTests` / `CameraSessionLogTest`, and
+`CameraSplitLayoutTests` / `CameraSplitLayoutTest`.
+
+iOS-only `CameraOrientationTests` covers landscape pane mapping and rejection
+of results from an old orientation. `CameraRecognitionLogTests` exercises the
+real model ingestion seam and stale session results. Android's
+`CameraSessionLogPaneTest` checks copy/save/clear actions, while
+`CameraSessionLogStateTest` checks Activity recreation, exit invalidation and
+independent highlight deadlines. `LiveOcrAnalyzerTest` is re-run unchanged to
+preserve its main-dispatch delivery regression. These platform-specific
+checks reflect AVFoundation versus CameraX lifecycle and coordinate APIs;
+they do not duplicate the mirrored policy/log/layout tests.
+
+`LiveOcrAnalyzerTest` also covers Android's ML Kit pixel coordinates and
+upright-basis mapping (D5). iOS Vision returns normalized coordinates, but
+landscape preview/output orientation still required its own regression
+coverage, now provided by `CameraOrientationTests`.
 
 ## Conclusion
 
 Every iOS library type/file, both example apps, and the Quran plugin map to
 an Android counterpart with equivalent public surface and behaviour. All
 divergences are accounted for: four named spec SDK substitutions (D3, D4, D6,
-D9) and nine sanctioned execution decisions (D1, D2, D5, D7, D8, D10, D11,
-D12, D13). The mirrored test sets match 1:1 modulo the explained
-platform-only `LiveOcrAnalyzerTest` and the factoring-driven test relocations
-noted above. No unintended parity break was found.
+D9) and ten sanctioned execution decisions (D1, D2, D5, D7, D8, D10, D11,
+D12, D13, D14). Mirrored policy, log and layout suites have platform-specific
+orientation and lifecycle checks where the native APIs differ.

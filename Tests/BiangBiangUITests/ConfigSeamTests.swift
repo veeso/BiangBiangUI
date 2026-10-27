@@ -83,6 +83,9 @@ struct NoopPlugin: FeaturePlugin {
     #expect(cfg.features.history && cfg.features.ratePrompt && cfg.features.tts)
     #expect(cfg.minimumOcrScaleFactor == 0.6)
     #expect(cfg.strings.clearAll == "Clear All")
+    #expect(cfg.strings.cameraLogTitle == "Found text")
+    #expect(cfg.strings.cameraLogClear == "Clear")
+    #expect(cfg.strings.cameraLogEmpty == "Point the camera at text")
 }
 
 @MainActor
@@ -92,9 +95,17 @@ struct NoopPlugin: FeaturePlugin {
                            logoAssetName: "", buttonLogoAssetName: "", githubRepo: "",
                            supportEmail: "", appStoreId: "", playStoreId: ""),
         languages: [], extraSettings: [], plugins: [],
-        features: FeatureFlags(), strings: ["clearAll": "Wipe"]
+        features: FeatureFlags(), strings: [
+            "clearAll": "Wipe",
+            "cameraLogTitle": "Detected",
+            "cameraLogClear": "Reset",
+            "cameraLogEmpty": "Aim here",
+        ]
     )
     #expect(cfg.strings.clearAll == "Wipe")
+    #expect(cfg.strings.cameraLogTitle == "Detected")
+    #expect(cfg.strings.cameraLogClear == "Reset")
+    #expect(cfg.strings.cameraLogEmpty == "Aim here")
 }
 
 @MainActor @Test func arabicConfigHasQuranPluginAndDescriptor() {

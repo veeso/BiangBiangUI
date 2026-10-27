@@ -31,6 +31,8 @@ public enum AppDesign {
     public static let shortAnimation: Double = 0.2
     /// Toast fade duration.
     public static let toastAnimation: Double = 0.25
+    /// Time a newly recognised camera log entry stays highlighted.
+    public static let logHighlightDuration: Double = 1.5
 
     /// Standard shadow radius for floating buttons.
     public static let buttonShadow: CGFloat = 4

@@ -31,6 +31,9 @@ public struct UIStrings: Sendable {
     public var notNow = "Not now"
     public var dontAskAgain = "Don't ask again"
     public var translationLanguage = "Translation language"
+    public var cameraLogTitle = "Found text"
+    public var cameraLogClear = "Clear"
+    public var cameraLogEmpty = "Point the camera at text"
     public var tabText = "Text"
     public var tabCamera = "Camera"
     public var tabHistory = "History"
@@ -130,6 +133,15 @@ public struct UIStrings: Sendable {
         }
         if let v = o["translationLanguage"] {
             s.translationLanguage = v
+        }
+        if let v = o["cameraLogTitle"] {
+            s.cameraLogTitle = v
+        }
+        if let v = o["cameraLogClear"] {
+            s.cameraLogClear = v
+        }
+        if let v = o["cameraLogEmpty"] {
+            s.cameraLogEmpty = v
         }
         if let v = o["tabText"] {
             s.tabText = v

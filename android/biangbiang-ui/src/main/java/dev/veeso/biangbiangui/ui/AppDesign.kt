@@ -42,6 +42,9 @@ object AppDesign {
     /** Toast fade duration. */
     const val TOAST_ANIMATION_MS = 250
 
+    /** Time a newly recognised camera log entry stays highlighted. */
+    const val LOG_HIGHLIGHT_DURATION_MS = 1500L
+
     /** Debounce window for live text input processing. */
     const val INPUT_DEBOUNCE_MS = 800L
 }

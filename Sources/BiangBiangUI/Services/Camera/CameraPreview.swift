@@ -6,11 +6,13 @@
 #if canImport(UIKit)
     import AVFoundation
     import SwiftUI
+    import UIKit
 
     /// SwiftUI wrapper that renders the live camera preview.
     ///
-    /// Ported from `CameraPreview` in BiangBiang Hanzi; the only change is
-    /// that the `CameraModel` reference is renamed to `OCRCameraModel`.
+    /// The container keeps the preview layer sized to its laid-out bounds.
+    /// Attaching the layer to `OCRCameraModel` lets its rotation coordinator
+    /// keep preview and capture orientation aligned.
     public struct CameraPreview: UIViewRepresentable {
         public let session: AVCaptureSession
         public let cameraModel: OCRCameraModel
@@ -20,40 +22,28 @@
             self.cameraModel = cameraModel
         }
 
-        public func makeUIView(context: Context) -> UIView {
-            let view = UIView()
+        public func makeUIView(context _: Context) -> UIView {
+            let view = CameraPreviewContainerView()
             let previewLayer = AVCaptureVideoPreviewLayer(session: session)
             previewLayer.videoGravity = .resizeAspect
-            cameraModel.previewLayer = previewLayer
-
-            if let connection = previewLayer.connection {
-                if connection.isVideoRotationAngleSupported(0) {
-                    connection.videoRotationAngle = 0
-                }
-            }
-
             view.layer.addSublayer(previewLayer)
-            context.coordinator.previewLayer = previewLayer
-
-            // Ensure initial sizing
-            previewLayer.frame = view.bounds
+            view.previewLayer = previewLayer
+            cameraModel.attachPreviewLayer(previewLayer)
 
             return view
         }
 
-        public func updateUIView(_ uiView: UIView, context: Context) {
-            DispatchQueue.main.async {
-                context.coordinator.previewLayer?.frame = uiView.bounds
-                cameraModel.previewLayer?.frame = uiView.bounds
-            }
+        public func updateUIView(_ uiView: UIView, context _: Context) {
+            uiView.setNeedsLayout()
         }
+    }
 
-        public func makeCoordinator() -> Coordinator {
-            Coordinator()
-        }
+    private final class CameraPreviewContainerView: UIView {
+        var previewLayer: AVCaptureVideoPreviewLayer?
 
-        public class Coordinator {
-            public var previewLayer: AVCaptureVideoPreviewLayer?
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            previewLayer?.frame = bounds
         }
     }
 #endif

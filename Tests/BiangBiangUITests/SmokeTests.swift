@@ -2,5 +2,5 @@
 import Testing
 
 @Test func libraryVersionMatchesRelease() {
-    #expect(BiangBiangUI.version == "0.4.0")
+    #expect(BiangBiangUI.version == "0.5.0")
 }
