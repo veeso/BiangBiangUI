@@ -92,18 +92,6 @@ struct CameraGeometryHarness: View {
                       let window = view.window else { continue }
                 let preview = view.convert(layer.frame, to: window)
                 let box = RecognizedTextBox(text: "Alignment", pixelRect: CGRect(x: 700, y: 500, width: 400, height: 120))
-                if ProcessInfo.processInfo.arguments.contains("still"), model.capturedImage == nil {
-                    // Both captured photos and gallery images render through capturedImage.
-                    // The green source rectangle lets XCUITest measure actual rendered pixels.
-                    model.capturedImage = UIGraphicsImageRenderer(size: CGSize(width: 1920, height: 1080)).image { context in
-                        UIColor.white.setFill()
-                        context.fill(CGRect(x: 0, y: 0, width: 1920, height: 1080))
-                        UIColor.green.setFill()
-                        // Match the OCR box's top and center; extend the sides so
-                        // even an accessibility-sized pill cannot hide the marker.
-                        context.fill(CGRect(x: 100, y: 500, width: 1600, height: 120))
-                    }
-                }
                 model.lastImagePixelSize = CGSize(width: 1920, height: 1080)
                 if model.recognizedTexts.isEmpty {
                     model.recognizedTexts = [box]

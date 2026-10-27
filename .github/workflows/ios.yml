@@ -60,7 +60,7 @@ jobs:
           echo "Using runtime $RUNTIME for SDK $SDK"
           SUPPORTED=$(xcrun simctl list runtimes --json \
             | jq -c --arg rt "$RUNTIME" '[.runtimes[] | select(.identifier == $rt) | .supportedDeviceTypes[]
-                       | select(.name | startswith("iPhone"))]')
+                       | select(.name | startswith("iPhone") and (contains("Duo") | not))]')
           DEVTYPE=$(jq -r '([.[] | select(.name | test("^iPhone [0-9]+$"))]
                      | sort_by(.name | capture("(?<n>[0-9]+)").n | tonumber) | last) // last
                      | .identifier // empty' <<< "$SUPPORTED")
