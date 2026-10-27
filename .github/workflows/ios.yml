@@ -60,12 +60,16 @@ jobs:
           echo "Using runtime $RUNTIME for SDK $SDK"
           SUPPORTED=$(xcrun simctl list runtimes --json \
             | jq -c --arg rt "$RUNTIME" '[.runtimes[] | select(.identifier == $rt) | .supportedDeviceTypes[]
-                       | select(.name | startswith("iPhone") and (contains("Duo") | not))]')
+                       | select(.name | startswith("iPhone") or startswith("iPad"))]')
+          echo "Supported device types: $SUPPORTED"
+          # Prefer a standard iPhone, then any iPad, then any remaining iPhone (e.g. Duo).
           DEVTYPE=$(jq -r '([.[] | select(.name | test("^iPhone [0-9]+$"))]
-                     | sort_by(.name | capture("(?<n>[0-9]+)").n | tonumber) | last) // last
+                     | sort_by(.name | capture("(?<n>[0-9]+)").n | tonumber) | last)
+                     // ([.[] | select(.name | startswith("iPad"))] | last)
+                     // ([.[] | select(.name | startswith("iPhone"))] | last)
                      | .identifier // empty' <<< "$SUPPORTED")
           if [ -z "$DEVTYPE" ]; then
-            echo "No iPhone device type supports $RUNTIME. Supported: $SUPPORTED"
+            echo "No iPhone or iPad device type supports $RUNTIME. Supported: $SUPPORTED"
             exit 1
           fi
           echo "Using device type $DEVTYPE"
