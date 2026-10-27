@@ -46,10 +46,13 @@
     /// a layout pass, and returns without crashing — exercising the real
     /// dependency graph + tab composition.
     @MainActor
-    private func hostAndLayout(_ config: BiangBiangConfig) {
+    private func hostAndLayout(
+        _ config: BiangBiangConfig,
+        size: CGSize = CGSize(width: 390, height: 844)
+    ) {
         let host = UIHostingController(rootView: BiangBiangRootView(config: config))
         host.loadViewIfNeeded()
-        host.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        host.view.frame = CGRect(origin: .zero, size: size)
         host.view.layoutIfNeeded()
     }
 
@@ -63,6 +66,13 @@
     @MainActor
     @Test func arabicRootViewHostsWithoutCrashing() {
         hostAndLayout(ArabicConfig.arabicConfig)
+    }
+
+    @MainActor
+    @Test func wideRootViewsHostWithoutCrashing() {
+        let size = CGSize(width: 1024, height: 744)
+        hostAndLayout(ChineseConfig.chineseConfig, size: size)
+        hostAndLayout(ArabicConfig.arabicConfig, size: size)
     }
 
     // MARK: - Config-driven tab contract

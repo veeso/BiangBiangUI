@@ -44,7 +44,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.github.veeso.BiangBiangUI"
                 artifactId = "biangbiang-ui"
-                version = project.version.takeIf { it != "unspecified" }?.toString() ?: "0.4.0"
+                version = project.version.takeIf { it != "unspecified" }?.toString() ?: "0.5.0"
             }
         }
     }
@@ -84,5 +84,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.datastore.core)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

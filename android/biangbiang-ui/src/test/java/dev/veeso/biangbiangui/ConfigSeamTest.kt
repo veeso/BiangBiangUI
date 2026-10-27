@@ -92,6 +92,9 @@ class ConfigSeamTest {
         assertTrue(cfg.features.history && cfg.features.ratePrompt && cfg.features.tts)
         assertEquals(0.6f, cfg.minimumOcrScaleFactor, 0.0001f)
         assertEquals("Clear All", cfg.strings.clearAll)
+        assertEquals("Found text", cfg.strings.cameraLogTitle)
+        assertEquals("Clear", cfg.strings.cameraLogClear)
+        assertEquals("Point the camera at text", cfg.strings.cameraLogEmpty)
     }
 
     @Test fun stringOverridesMergeOverDefaults() {
@@ -101,9 +104,17 @@ class ConfigSeamTest {
             extraSettings = emptyList(),
             plugins = emptyList(),
             features = FeatureFlags(),
-            strings = mapOf("clearAll" to "Wipe"),
+            strings = mapOf(
+                "clearAll" to "Wipe",
+                "cameraLogTitle" to "Detected",
+                "cameraLogClear" to "Reset",
+                "cameraLogEmpty" to "Aim here",
+            ),
         )
         assertEquals("Wipe", cfg.strings.clearAll)
+        assertEquals("Detected", cfg.strings.cameraLogTitle)
+        assertEquals("Reset", cfg.strings.cameraLogClear)
+        assertEquals("Aim here", cfg.strings.cameraLogEmpty)
         // unspecified keys keep English defaults
         assertEquals("Copy", cfg.strings.copy)
     }

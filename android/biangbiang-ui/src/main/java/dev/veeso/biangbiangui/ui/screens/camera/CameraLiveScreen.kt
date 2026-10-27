@@ -1,9 +1,14 @@
 package dev.veeso.biangbiangui.ui.screens.camera
 
+import android.app.Activity
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.os.Build
 import android.provider.MediaStore
+import android.view.Surface
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,10 +43,10 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -60,6 +65,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.veeso.biangbiangui.protocols.ProcessedText
 import dev.veeso.biangbiangui.services.camera.LiveOcrAnalyzer
 import dev.veeso.biangbiangui.services.camera.OcrBox
@@ -97,10 +104,35 @@ import kotlin.math.abs
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CameraLiveScreen(ctx: BiangBiangContext) {
+    val context = LocalContext.current
+    val viewModelStoreOwner = LocalViewModelStoreOwner.current
+        ?: error("CameraLiveScreen requires a ViewModelStoreOwner")
+    val sessionLogState = viewModel<CameraSessionLogState>(
+        viewModelStoreOwner = viewModelStoreOwner,
+        key = "BiangBiangUI.CameraSessionLog",
+    )
+    val sessionRevision = remember(sessionLogState) { sessionLogState.beginSession() }
+    val activity = context.findActivity()
+
+    DisposableEffect(sessionLogState, activity) {
+        onDispose {
+            sessionLogState.endSession(recreating = activity?.isChangingConfigurations == true)
+        }
+    }
+
+    var isBuiltInDisplay by remember { mutableStateOf(false) }
+    var displayRotation by remember { mutableIntStateOf(Surface.ROTATION_0) }
+    CameraDisplayObserver { builtIn, rotation ->
+        isBuiltInDisplay = builtIn
+        displayRotation = rotation
+    }
+
     var frameWidth by remember { mutableIntStateOf(1) }
     var frameHeight by remember { mutableIntStateOf(1) }
     var showTransliteration by remember { mutableStateOf(true) }
     var capturedImage by remember { mutableStateOf<Bitmap?>(null) }
+    var capturedImageSessionRevision by remember { mutableLongStateOf(sessionRevision) }
+    var pendingGallerySessionRevision by remember { mutableLongStateOf(sessionRevision) }
     // Immutable lists swapped atomically. A SnapshotStateList here let the
     // background OCR callback restructure the list (clear()+addAll()) while
     // OcrOverlay's Canvas iterated it during the draw phase, throwing
@@ -130,7 +162,6 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
         }
     }
 
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val recognizerKind = ctx.activeProfile.ocrRecognizer
     val engine = ctx.engine
@@ -176,12 +207,13 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val analyzer = remember(ocrService, recognizerKind, engine) {
+    val analyzer = remember(ocrService, recognizerKind, engine, sessionLogState, sessionRevision) {
         LiveOcrAnalyzer(
             service = ocrService,
             recognizer = recognizerKind,
             engine = engine,
-            onResult = { newBoxes, w, h ->
+            onResult = result@{ newBoxes, w, h ->
+                if (!sessionLogState.accept(newBoxes, sessionRevision)) return@result
                 liveOcrBoxes = newBoxes
                 frameWidth = w
                 frameHeight = h
@@ -238,13 +270,23 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
         }
     }
 
-    LaunchedEffect(capturedImage, ocrService, recognizerKind, engine) {
+    LaunchedEffect(
+        capturedImage,
+        capturedImageSessionRevision,
+        ocrService,
+        recognizerKind,
+        engine,
+        sessionRevision,
+    ) {
         ocrBoxes = emptyList()
         capturedImage?.let { bitmap ->
-            val boxes = StillImageOcr(ocrService, recognizerKind, engine)
-                .recognize(bitmap)
-            ocrBoxes = boxes
-            dispatchPluginHooks(boxes)
+            val stillSessionRevision = capturedImageSessionRevision
+            recognizeCameraImage(sessionLogState, stillSessionRevision,
+                recognize = { StillImageOcr(ocrService, recognizerKind, engine).recognize(bitmap) },
+            ) { boxes ->
+                ocrBoxes = boxes
+                dispatchPluginHooks(boxes)
+            }
         }
     }
 
@@ -260,7 +302,13 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
                     @Suppress("DEPRECATION")
                     MediaStore.Images.Media.getBitmap(context.contentResolver, it)
                 }
-            }.onSuccess { capturedImage = it }
+            }.onSuccess {
+                val requestedRevision = pendingGallerySessionRevision
+                acceptCameraImage(sessionLogState, requestedRevision, it) { image ->
+                    capturedImageSessionRevision = requestedRevision
+                    capturedImage = image
+                }
+            }
         }
     }
 
@@ -270,130 +318,167 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (capturedImage == null) {
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { previewView },
-                )
-                OcrOverlay(
-                    boxes = liveOcrBoxes,
-                    imageWidth = frameWidth,
-                    imageHeight = frameHeight,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            // Pinch-to-zoom. Coexists with OcrOverlay's tap
-                            // detector (detectTransformGestures waits for 2+).
-                            detectTransformGestures { _, _, gestureZoom, _ ->
-                                if (gestureZoom != 1f) {
-                                    applyZoom(zoomRatio * gestureZoom)
+            CameraSplitLayout(
+                isBuiltInDisplay = isBuiltInDisplay,
+                cameraSide = CameraLayoutPolicy.cameraSide(displayRotation),
+                sidePane = {
+                    CameraSessionLogPane(
+                        log = sessionLogState.log,
+                        strings = ctx.config.strings,
+                        accent = ctx.config.branding.accentColor,
+                        highlightedIDs = sessionLogState.highlightedIds,
+                        onCopy = { entry ->
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                as ClipboardManager
+                            copyCameraLogEntry(entry, showTransliteration, clipboard) {
+                                showCopyToast = true
+                            }
+                        },
+                        onSave = { entry ->
+                            val variantId = ctx.activeVariant?.id ?: ""
+                            scope.launch {
+                                saveCameraLogEntry(entry, ctx.settings, variantId) {
+                                    showSavedToast = true
                                 }
                             }
                         },
-                    isLive = true,
-                    showTransliteration = showTransliteration,
-                    minScaleFactor = ctx.config.minimumOcrScaleFactor,
-                    onTextCopied = { showCopyToast = true },
-                    onSaveBox = saveBox,
-                )
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = AppDesign.sectionSpacing),
-                    verticalArrangement = Arrangement.Bottom,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    if (presets.isNotEmpty()) {
-                        ZoomPresetBar(
-                            presets = presets,
-                            zoomRatio = zoomRatio,
-                            accent = ctx.config.branding.accentColor,
-                            onSelect = ::applyZoom,
-                        )
-                    }
-                    CaptureControlBar(
-                        showTransliteration = showTransliteration,
-                        accent = ctx.config.branding.accentColor,
-                        buttonLogoAssetName = ctx.config.branding.buttonLogoAssetName,
-                        onToggle = { showTransliteration = !showTransliteration },
-                        onCapture = {
-                            capturePhoto(context, cameraController) { bitmap ->
-                                capturedImage = bitmap
-                            }
-                        },
-                        onPickGallery = {
-                            galleryLauncher.launch(
-                                PickVisualMediaRequest(
-                                    ActivityResultContracts.PickVisualMedia.ImageOnly,
-                                ),
+                        onClear = sessionLogState::clear,
+                    )
+                },
+                cameraPane = {
+                    Box(Modifier.fillMaxSize()) {
+                        if (capturedImage == null) {
+                            AndroidView(
+                                modifier = Modifier.fillMaxSize(),
+                                factory = { previewView },
                             )
-                        },
-                    )
-                }
-            } else {
-                Image(
-                    bitmap = capturedImage!!.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit,
-                )
+                            OcrOverlay(
+                                boxes = liveOcrBoxes,
+                                imageWidth = frameWidth,
+                                imageHeight = frameHeight,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .pointerInput(Unit) {
+                                        // Pinch-to-zoom. Coexists with OcrOverlay's tap
+                                        // detector (detectTransformGestures waits for 2+).
+                                        detectTransformGestures { _, _, gestureZoom, _ ->
+                                            if (gestureZoom != 1f) {
+                                                applyZoom(zoomRatio * gestureZoom)
+                                            }
+                                        }
+                                    },
+                                isLive = true,
+                                showTransliteration = showTransliteration,
+                                minScaleFactor = ctx.config.minimumOcrScaleFactor,
+                                onTextCopied = { showCopyToast = true },
+                                onSaveBox = saveBox,
+                            )
 
-                OcrOverlay(
-                    boxes = ocrBoxes,
-                    imageWidth = capturedImage!!.width,
-                    imageHeight = capturedImage!!.height,
-                    modifier = Modifier.fillMaxSize(),
-                    isLive = false,
-                    showTransliteration = showTransliteration,
-                    minScaleFactor = ctx.config.minimumOcrScaleFactor,
-                    onTextCopied = { showCopyToast = true },
-                    onSaveBox = saveBox,
-                )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(bottom = AppDesign.sectionSpacing),
+                                verticalArrangement = Arrangement.Bottom,
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                if (presets.isNotEmpty()) {
+                                    ZoomPresetBar(
+                                        presets = presets,
+                                        zoomRatio = zoomRatio,
+                                        accent = ctx.config.branding.accentColor,
+                                        onSelect = ::applyZoom,
+                                    )
+                                }
+                                CaptureControlBar(
+                                    showTransliteration = showTransliteration,
+                                    accent = ctx.config.branding.accentColor,
+                                    buttonLogoAssetName = ctx.config.branding.buttonLogoAssetName,
+                                    onToggle = { showTransliteration = !showTransliteration },
+                                    onCapture = {
+                                        val requestRevision = sessionRevision
+                                        capturedImageSessionRevision = requestRevision
+                                        capturePhoto(context, cameraController) { bitmap ->
+                                            acceptCameraImage(sessionLogState, requestRevision, bitmap) {
+                                                capturedImage = it
+                                            }
+                                        }
+                                    },
+                                    onPickGallery = {
+                                        pendingGallerySessionRevision = sessionRevision
+                                        galleryLauncher.launch(
+                                            PickVisualMediaRequest(
+                                                ActivityResultContracts.PickVisualMedia.ImageOnly,
+                                            ),
+                                        )
+                                    },
+                                )
+                            }
+                        } else {
+                            Image(
+                                bitmap = capturedImage!!.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit,
+                            )
 
-                FilledTonalIconButton(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(AppDesign.stackSpacing),
-                    onClick = { capturedImage = null },
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close preview")
-                }
-            }
+                            OcrOverlay(
+                                boxes = ocrBoxes,
+                                imageWidth = capturedImage!!.width,
+                                imageHeight = capturedImage!!.height,
+                                modifier = Modifier.fillMaxSize(),
+                                isLive = false,
+                                showTransliteration = showTransliteration,
+                                minScaleFactor = ctx.config.minimumOcrScaleFactor,
+                                onTextCopied = { showCopyToast = true },
+                                onSaveBox = saveBox,
+                            )
 
-            val anyBoxes =
-                if (capturedImage == null) liveOcrBoxes.isNotEmpty()
-                else ocrBoxes.isNotEmpty()
-            if (anyBoxes) {
-                Text(
-                    text = ctx.config.strings.tapToCopyLongPressToSave,
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = AppDesign.stackSpacing),
-                )
-            }
+                            FilledTonalIconButton(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(AppDesign.stackSpacing),
+                                onClick = { capturedImage = null },
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close preview")
+                            }
+                        }
 
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = AppDesign.bottomToolbarPadding),
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    CopyToast(
-                        visible = showSavedToast,
-                        message = ctx.config.strings.savedToHistory,
-                    )
-                    CopyToast(
-                        visible = showCopyToast,
-                        message = ctx.config.strings.textCopied,
-                    )
-                }
-            }
+                        val anyBoxes =
+                            if (capturedImage == null) liveOcrBoxes.isNotEmpty()
+                            else ocrBoxes.isNotEmpty()
+                        if (anyBoxes) {
+                            Text(
+                                text = ctx.config.strings.tapToCopyLongPressToSave,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = AppDesign.stackSpacing),
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = AppDesign.bottomToolbarPadding),
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                CopyToast(
+                                    visible = showSavedToast,
+                                    message = ctx.config.strings.savedToHistory,
+                                )
+                                CopyToast(
+                                    visible = showCopyToast,
+                                    message = ctx.config.strings.textCopied,
+                                )
+                            }
+                        }
+                    }
+                },
+            )
         }
     }
 
@@ -406,6 +491,17 @@ internal fun CameraLiveScreen(ctx: BiangBiangContext) {
             sheet()
         }
     }
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        val baseContext = current.baseContext ?: return null
+        if (baseContext === current) return null
+        current = baseContext
+    }
+    return current as? Activity
 }
 
 @Composable

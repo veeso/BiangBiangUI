@@ -43,6 +43,9 @@ data class UiStrings(
     val tabCamera: String = "Camera",
     val tabHistory: String = "History",
     val tabSettings: String = "Settings",
+    val cameraLogTitle: String = "Found text",
+    val cameraLogClear: String = "Clear",
+    val cameraLogEmpty: String = "Point the camera at text",
 ) {
     companion object {
         /** Merge override values keyed by property name over the English defaults. */
@@ -82,6 +85,9 @@ data class UiStrings(
                 notNow = overrides["notNow"] ?: d.notNow,
                 dontAskAgain = overrides["dontAskAgain"] ?: d.dontAskAgain,
                 translationLanguage = overrides["translationLanguage"] ?: d.translationLanguage,
+                cameraLogTitle = overrides["cameraLogTitle"] ?: d.cameraLogTitle,
+                cameraLogClear = overrides["cameraLogClear"] ?: d.cameraLogClear,
+                cameraLogEmpty = overrides["cameraLogEmpty"] ?: d.cameraLogEmpty,
                 tabText = overrides["tabText"] ?: d.tabText,
                 tabCamera = overrides["tabCamera"] ?: d.tabCamera,
                 tabHistory = overrides["tabHistory"] ?: d.tabHistory,
