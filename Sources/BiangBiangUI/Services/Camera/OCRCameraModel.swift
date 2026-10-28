@@ -59,9 +59,6 @@
         /// detected in. The overlay maps `pixelRect` (image-pixel, top-left)
         /// onto the view using this size. `.zero` until the first pass.
         public var lastImagePixelSize: CGSize = .zero
-        /// Increments whenever the live preview's orientation basis changes.
-        /// Live OCR results are accepted only for the revision they captured.
-        private(set) var liveOrientationRevision: UInt64 = 0
         /// Recognition results are accepted only within this camera-screen visit.
         private(set) var recognitionSessionRevision: UInt64 = 0
         /// Public model consumers can recognize immediately; explicit session end still invalidates callbacks.
@@ -110,18 +107,8 @@
             label: "camera.frame.processing"
         )
         @ObservationIgnored public var previewLayer: AVCaptureVideoPreviewLayer?
-        @ObservationIgnored private var rotationCoordinator:
-            AVCaptureDevice.RotationCoordinator?
-        @ObservationIgnored private var rotationAngleObservation: NSKeyValueObservation?
-        @ObservationIgnored private var interfaceOrientation: UIInterfaceOrientation = .portrait
-        /// Read and written only on `queue`, which serializes capture callbacks
-        /// with connection rotation updates.
-        @ObservationIgnored private(set) nonisolated(unsafe) var frameOrientationRevision: UInt64 = 0
-        /// Read and written only on `queue` with `frameOrientationRevision`.
+        /// Read and written only on `queue`, which serializes capture callbacks.
         @ObservationIgnored private nonisolated(unsafe) var frameSessionRevision: UInt64 = 0
-        @ObservationIgnored private var currentAppliedRotationAngle: CGFloat = 0
-        @ObservationIgnored private let rotationConnections: (() -> [any CameraRotationConnection])?
-        @ObservationIgnored private let horizonAngle: (() -> CGFloat?)?
         @ObservationIgnored private let highlightSleep: @Sendable (Duration) async throws -> Void
         @ObservationIgnored private var highlightTasks: [UUID: Task<Void, Never>] = [:]
         /// Capture request revisions, keyed by AVFoundation's unique settings ID.
@@ -136,10 +123,6 @@
         @ObservationIgnored private nonisolated(unsafe) var captureSuspended = false
         @ObservationIgnored private var isConfigured = false
 
-        var isLiveLandscape: Bool {
-            capturedImage == nil && interfaceOrientation.isLandscape
-        }
-
         // MARK: - Init
 
         public convenience init(profile: LanguageProfile, engine: TextProcessingEngine) {
@@ -147,12 +130,8 @@
         }
 
         init(profile: LanguageProfile, engine: TextProcessingEngine,
-             highlightSleep: @escaping @Sendable (Duration) async throws -> Void,
-             rotationConnections: (() -> [any CameraRotationConnection])? = nil,
-             horizonAngle: (() -> CGFloat?)? = nil)
+             highlightSleep: @escaping @Sendable (Duration) async throws -> Void)
         {
-            self.rotationConnections = rotationConnections
-            self.horizonAngle = horizonAngle
             self.highlightSleep = highlightSleep
             self.profile = profile
             self.engine = engine
@@ -204,10 +183,6 @@
             didOutput sampleBuffer: CMSampleBuffer,
             from _: AVCaptureConnection
         ) {
-            // `queue` also serializes connection updates. Capture this before
-            // throttling or creating the image so actor scheduling cannot
-            // label an old buffer with a newer orientation revision.
-            let orientationRevision = frameOrientationRevision
             let sessionRevision = frameSessionRevision
 
             // Do not capture while a still image is set.
@@ -234,8 +209,7 @@
                     boxes,
                     engine: engine,
                     imagePixelSize: size,
-                    sessionRevision: sessionRevision,
-                    orientationRevision: orientationRevision
+                    sessionRevision: sessionRevision
                 )
             }
         }
@@ -292,24 +266,15 @@
             captureSuspended = false
         }
 
-        /// Updates preview and live-buffer orientation from the hosting scene.
-        /// Connection changes share the serial frame queue so a frame records
-        /// the revision that was active when its buffer entered OCR.
-        func updateInterfaceOrientation(_ orientation: UIInterfaceOrientation) {
-            guard orientation != .unknown, orientation != interfaceOrientation else { return }
-
-            interfaceOrientation = orientation
-            liveOrientationRevision &+= 1
-            clearLiveRecognitionForOrientationChange()
-            applyCurrentConnectionOrientation(revision: liveOrientationRevision)
-        }
-
-        /// Called by `CameraPreview` when its layer becomes available. This
-        /// also handles a preview attached after session configuration.
+        /// Called by `CameraPreview` when its layer becomes available. The
+        /// preview connection is pinned to angle 0, as before 0.5.
         func attachPreviewLayer(_ previewLayer: AVCaptureVideoPreviewLayer) {
             self.previewLayer = previewLayer
-            configureRotationCoordinator()
-            applyCurrentConnectionOrientation(revision: liveOrientationRevision)
+            if let connection = previewLayer.connection,
+               connection.isVideoRotationAngleSupported(0)
+            {
+                connection.videoRotationAngle = 0
+            }
         }
 
         @discardableResult
@@ -497,84 +462,6 @@
                 videoOutput.setSampleBufferDelegate(self, queue: queue)
                 session.addOutput(videoOutput)
             }
-
-            configureRotationCoordinator()
-            applyCurrentConnectionOrientation(revision: liveOrientationRevision)
-        }
-
-        private func configureRotationCoordinator() {
-            guard let device else { return }
-            let coordinator = AVCaptureDevice.RotationCoordinator(
-                device: device,
-                previewLayer: previewLayer
-            )
-            rotationCoordinator = coordinator
-            rotationAngleObservation = coordinator.observe(
-                \.videoRotationAngleForHorizonLevelPreview,
-                options: [.initial, .new]
-            ) { [weak self] _, change in
-                guard let angle = change.newValue else { return }
-                Task { @MainActor in
-                    self?.rotationCoordinatorDidChange(angle: angle)
-                }
-            }
-        }
-
-        func rotationCoordinatorDidChange(angle: CGFloat) {
-            guard interfaceOrientation.isLandscape,
-                  abs(angle - currentAppliedRotationAngle) > 0.01
-            else { return }
-
-            liveOrientationRevision &+= 1
-            clearLiveRecognitionForOrientationChange()
-            applyCurrentConnectionOrientation(
-                revision: liveOrientationRevision,
-                angle: angle
-            )
-        }
-
-        private func clearLiveRecognitionForOrientationChange() {
-            guard capturedImage == nil else { return }
-            recognizedTexts = []
-            transliterationMap.removeAll(keepingCapacity: true)
-            lastImagePixelSize = .zero
-        }
-
-        private func applyCurrentConnectionOrientation(
-            revision: UInt64,
-            angle requestedAngle: CGFloat? = nil
-        ) {
-            let angle = requestedAngle ?? connectionRotationAngle(for: interfaceOrientation)
-            let connections = rotationConnections?() ?? [previewLayer?.connection, videoOutput.connection(with: .video)].compactMap(\.self)
-
-            queue.sync {
-                if let angle {
-                    for connection in connections where connection.isVideoRotationAngleSupported(angle) {
-                        connection.videoRotationAngle = angle
-                    }
-                    frameOrientationRevision = revision
-                } else {
-                    frameOrientationRevision = revision
-                }
-            }
-
-            if let angle {
-                currentAppliedRotationAngle = angle
-            }
-        }
-
-        private func connectionRotationAngle(
-            for orientation: UIInterfaceOrientation
-        ) -> CGFloat? {
-            switch orientation {
-            case .portrait, .portraitUpsideDown:
-                // Preserve the established portrait capture path.
-                0
-            case .landscapeLeft, .landscapeRight:
-                horizonAngle?() ?? rotationCoordinator?.videoRotationAngleForHorizonLevelPreview
-            default:
-                nil
-            }
         }
 
         /// Start the session off the main thread.
@@ -602,10 +489,9 @@
         /// and avoids the per-frame allocation cost of `CIContext()`.
         nonisolated static let ciContext = CIContext()
 
-        /// Builds a still `CGImage` from the live buffer as delivered by
-        /// `AVCaptureVideoDataOutput`. Any requested orientation has already
-        /// been applied by its connection; this conversion does not rotate
-        /// the pixels a second time.
+        /// Builds a still `CGImage` from a live camera frame. The resulting
+        /// image is in the sensor's native pixel space, matching the
+        /// coordinate space `OCRService` returns boxes in.
         nonisolated static func cgImage(from pixelBuffer: CVPixelBuffer) -> CGImage? {
             let ci = CIImage(cvPixelBuffer: pixelBuffer)
             return Self.ciContext.createCGImage(ci, from: ci.extent)
@@ -616,9 +502,9 @@
         ///
         /// `OCRService` deliberately takes only a `CGImage` (no orientation),
         /// mirroring the Android side which passes an upright `Bitmap`. The
-        /// pipeline owns frame normalisation: the live path requests upright
-        /// buffers from its video connection; this does the same for the
-        /// captured/gallery still path so detected boxes and the
+        /// pipeline owns frame normalisation: the live path already yields an
+        /// upright sensor image via `cgImage(from:)`; this does the same for
+        /// the captured/gallery still path so detected boxes and the
         /// pixel→view aspect-fit overlay are correct.
         nonisolated static func uprightCGImage(from image: UIImage) -> CGImage? {
             if image.imageOrientation == .up {
@@ -631,35 +517,6 @@
                 image.draw(in: CGRect(origin: .zero, size: image.size))
             }
             return normalized.cgImage
-        }
-
-        /// Maps a top-left pixel rect onto an aspect-fit image inside the
-        /// camera pane. Used for upright landscape live buffers, whose pixels
-        /// already share the preview's orientation.
-        nonisolated static func landscapeAspectFitRect(
-            _ rect: CGRect,
-            imageSize: CGSize,
-            viewSize: CGSize
-        ) -> CGRect {
-            guard imageSize.width > 0, imageSize.height > 0,
-                  viewSize.width > 0, viewSize.height > 0
-            else { return .zero }
-
-            let scale = min(
-                viewSize.width / imageSize.width,
-                viewSize.height / imageSize.height
-            )
-            let displayW = imageSize.width * scale
-            let displayH = imageSize.height * scale
-            let offsetX = (viewSize.width - displayW) * 0.5
-            let offsetY = (viewSize.height - displayH) * 0.5
-
-            return CGRect(
-                x: offsetX + rect.minX * scale,
-                y: offsetY + rect.minY * scale,
-                width: rect.width * scale,
-                height: rect.height * scale
-            )
         }
 
         /// Applies `OCRService` results: publishes the boxes (pixel-space,
@@ -699,12 +556,9 @@
             _ boxes: [OCRTextBox],
             engine: TextProcessingEngine,
             imagePixelSize: CGSize,
-            sessionRevision: UInt64,
-            orientationRevision: UInt64
+            sessionRevision: UInt64
         ) {
-            guard recognitionSessionActive, sessionRevision == recognitionSessionRevision,
-                  orientationRevision == liveOrientationRevision
-            else { return }
+            guard recognitionSessionActive, sessionRevision == recognitionSessionRevision else { return }
             applyRecognized(boxes, engine: engine, imagePixelSize: imagePixelSize)
         }
 

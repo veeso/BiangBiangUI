@@ -88,7 +88,6 @@ struct CameraRecognitionLogTests {
         let (camera, engine) = model()
         camera.beginRecognitionSession()
         let oldSession = camera.recognitionSessionRevision
-        let oldOrientation = camera.liveOrientationRevision
         let boxes = [OCRTextBox(text: "你", rect: .zero)]
         camera.endRecognitionSession()
         camera.beginRecognitionSession()
@@ -96,16 +95,14 @@ struct CameraRecognitionLogTests {
             boxes,
             engine: engine,
             imagePixelSize: CGSize(width: 200, height: 100),
-            sessionRevision: oldSession,
-            orientationRevision: oldOrientation
+            sessionRevision: oldSession
         )
         #expect(camera.sessionLog.entries.isEmpty)
         camera.applyLiveRecognized(
             boxes,
             engine: engine,
             imagePixelSize: CGSize(width: 200, height: 100),
-            sessionRevision: camera.recognitionSessionRevision,
-            orientationRevision: camera.liveOrientationRevision
+            sessionRevision: camera.recognitionSessionRevision
         )
         #expect(camera.sessionLog.entries.count == 1)
         camera.endRecognitionSession()
@@ -119,8 +116,7 @@ struct CameraRecognitionLogTests {
         camera.applyLiveRecognized(
             [OCRTextBox(text: "你", rect: .zero)], engine: engine,
             imagePixelSize: CGSize(width: 200, height: 100),
-            sessionRevision: camera.recognitionSessionRevision,
-            orientationRevision: camera.liveOrientationRevision
+            sessionRevision: camera.recognitionSessionRevision
         )
         #expect(camera.sessionLog.entries.isEmpty)
         camera.beginRecognitionSession()

@@ -1,4 +1,3 @@
-import UIKit
 import XCTest
 
 final class PaneUITests: XCTestCase {
@@ -28,29 +27,5 @@ final class PaneUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Testi trovati · 0"].exists)
         XCTAssertTrue(app.staticTexts["Nessun testo"].exists)
         XCTAssertFalse(row.exists)
-    }
-
-    @MainActor
-    func testLandscapeOverlayUsesNativePreviewWithAsymmetricSafeAreas() throws {
-        continueAfterFailure = false
-        XCUIDevice.shared.orientation = .landscapeLeft
-        defer { XCUIDevice.shared.orientation = .portrait }
-        try assertOverlayGeometry()
-    }
-
-    @MainActor
-    private func assertOverlayGeometry() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["geometry"]
-        app.launch()
-        let overlay = app.buttons["Alignment"]
-        XCTAssertTrue(overlay.waitForExistence(timeout: 10))
-        defer { app.terminate() }
-        let expected = app.staticTexts["expectedBottom"]
-        XCTAssertTrue(expected.waitForExistence(timeout: 5))
-        let bottom = try XCTUnwrap(Double(expected.label))
-        XCTAssertGreaterThan(bottom, 0)
-        XCTAssertEqual(overlay.frame.maxY, bottom, accuracy: 2,
-                       "Native preview: \(app.staticTexts["previewGeometry"].label)")
     }
 }

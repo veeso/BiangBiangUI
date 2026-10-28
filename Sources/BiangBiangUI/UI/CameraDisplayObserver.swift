@@ -81,7 +81,9 @@ final class CameraDisplayObservationView: UIView {
 
             let scene = window?.windowScene
             let observation = observation?() ?? (
-                isBuiltIn: scene?.screen == UIScreen.main,
+                // `UIScreen.main` is one fixed screen; on multi-panel devices the
+                // other built-in panel is not it. Only external scenes carry this role.
+                isBuiltIn: scene.map { $0.session.role != .windowExternalDisplayNonInteractive } ?? false,
                 orientation: scene?.interfaceOrientation ?? .unknown
             )
             guard lastObservation?.isBuiltIn != observation.isBuiltIn

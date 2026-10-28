@@ -31,9 +31,8 @@
     ///   shows the global saved toast.
     ///
     /// Coordinate conversion (`pixelRectToViewRect` / `aspectFitRect`) maps
-    /// `OCRService` pixel-space boxes onto the view; portrait live preview
-    /// keeps the pre-seam `layerRectConverted` placement, while upright
-    /// landscape buffers use aspect fit within the camera pane.
+    /// `OCRService` pixel-space boxes onto the view; the live-preview branch
+    /// preserves the pre-seam `layerRectConverted` placement exactly.
     public struct RecognizedTextOverlay: View {
         @Environment(BiangBiangContext.self) private var ctx
         @State private var isCopied = false
@@ -44,7 +43,6 @@
         let transliteration: String
         let boundingBox: RecognizedTextBox
         let viewSize: CGSize
-        let previewFrame: CGRect?
 
         private static let minFontSize: CGFloat = 12
         private static let minTapTarget: CGFloat = 44
@@ -56,15 +54,13 @@
             original: String,
             transliteration: String,
             boundingBox: RecognizedTextBox,
-            viewSize: CGSize,
-            previewFrame: CGRect? = nil
+            viewSize: CGSize
         ) {
             self.cameraModel = cameraModel
             self.original = original
             self.transliteration = transliteration
             self.boundingBox = boundingBox
             self.viewSize = viewSize
-            self.previewFrame = previewFrame
         }
 
         public var body: some View {
@@ -219,34 +215,21 @@
         /// Convert an `OCRService` box (source-image pixel space, top-left
         /// origin) to a view-space rect.
         ///
-        /// Three display contexts, mirroring the pre-seam behaviour:
+        /// Two display contexts, mirroring the pre-seam behaviour:
         /// - Captured/gallery still: the image is shown `scaledToFit`, so the
         ///   box is mapped onto that aspect-fit rect using the source image's
         ///   pixel size.
-        /// - Portrait live preview: `AVCaptureVideoPreviewLayer` owns the
-        ///   sensor→view transform. We normalise `pixelRect` back to Vision's
-        ///   metadata rect (0–1, bottom-left) and feed the *unchanged*
-        ///   `layerRectConverted(fromMetadataOutputRect:)` + x-flip path.
-        /// - Upright landscape live preview: the connection rotates delivered
-        ///   pixels to match the preview, so use the same aspect-fit mapping.
+        /// - Live preview: `AVCaptureVideoPreviewLayer` owns the sensor→view
+        ///   transform. We normalise `pixelRect` back to Vision's metadata
+        ///   rect (0–1, bottom-left) and feed the *unchanged*
+        ///   `layerRectConverted(fromMetadataOutputRect:)` + x-flip path, so
+        ///   the visible placement is identical to before the OCRService seam.
         private func pixelRectToViewRect(_ rect: CGRect, in size: CGSize) -> CGRect {
             let imageSize = cameraModel.lastImagePixelSize
             guard imageSize.width > 0, imageSize.height > 0 else { return .zero }
 
             if cameraModel.capturedImage != nil {
                 return aspectFitRect(rect, imageSize: imageSize, in: size)
-            }
-
-            if cameraModel.isLiveLandscape, imageSize.width > imageSize.height {
-                // The preview extends behind asymmetric safe areas. Map in its
-                // measured bounds, then translate into this overlay's coordinates.
-                let preview = previewFrame.flatMap { $0.isEmpty ? nil : $0 }
-                    ?? CGRect(origin: .zero, size: size)
-                return OCRCameraModel.landscapeAspectFitRect(
-                    rect,
-                    imageSize: imageSize,
-                    viewSize: preview.size
-                ).offsetBy(dx: preview.minX, dy: preview.minY)
             }
 
             if let previewLayer = cameraModel.previewLayer {
