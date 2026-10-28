@@ -32,8 +32,6 @@
         @Environment(BiangBiangContext.self) private var ctx
         @Bindable var cameraModel: OCRCameraModel
 
-        @Namespace private var cameraCoordinateSpace
-        @State private var previewFrame = CGRect.zero
         @State private var selectedItem: PhotosPickerItem?
         @State private var pinchBaseZoom: CGFloat = 1.0
         @State private var isBuiltInDisplay = false
@@ -69,9 +67,6 @@
                                 session: cameraModel.session,
                                 cameraModel: cameraModel
                             )
-                            .onGeometryChange(for: CGRect.self) { [cameraCoordinateSpace] geometry in
-                                geometry.frame(in: .named(cameraCoordinateSpace))
-                            } action: { previewFrame = $0 }
                             .ignoresSafeArea()
 
                             if let image = cameraModel.capturedImage {
@@ -89,8 +84,7 @@
                                         original: box.text,
                                         transliteration: transliteration,
                                         boundingBox: box,
-                                        viewSize: geo.size,
-                                        previewFrame: previewFrame
+                                        viewSize: geo.size
                                     )
                                 }
                             }
@@ -138,7 +132,6 @@
                                 .allowsHitTesting(false)
                             }
                         }
-                        .coordinateSpace(name: cameraCoordinateSpace)
                         .animation(
                             .easeOut(duration: AppDesign.toastAnimation),
                             value: cameraModel.showCopiedToast
@@ -163,7 +156,6 @@
                 CameraDisplayObserver { isBuiltIn, orientation in
                     isBuiltInDisplay = isBuiltIn
                     interfaceOrientation = orientation
-                    cameraModel.updateInterfaceOrientation(orientation)
                 }
                 .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
