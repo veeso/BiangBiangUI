@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.5.1
+
+Released on 2026-10-28
+
+### Fixed
+
+- **camera:** restore fixed preview angle and detect built-in panels on iOS
+
+> Drop the RotationCoordinator-driven landscape rotation added in 0.5. It
+> followed the physical device attitude instead of the interface, so the
+> preview flipped by 90 degrees on the Duo outer display. The preview
+> connection is pinned to angle 0 again and the overlay uses the 0.4
+> layerRectConverted mapping.
+>
+> Decide whether a scene is on a built-in panel from its session role
+> instead of comparing against UIScreen.main, which names one fixed screen
+> and treated the Duo inner panel as external, hiding the session log.
+
 ## 0.5.0
 
 Released on 2026-10-27
