@@ -5,6 +5,6 @@ import org.junit.Test
 
 class SmokeTest {
     @Test fun versionMatchesRelease() {
-        assertEquals("0.5.0", BiangBiangUi.VERSION)
+        assertEquals("0.5.1", BiangBiangUi.VERSION)
     }
 }
